@@ -16,22 +16,20 @@ public class EvolominoGenerator {
     private static Sample p;
 
     // int limits
-    public static int attemptLimit = 10000;
+    public static int attemptLimit = 1000;
     public static final int accuracy = 1000;
     // thresholds
     public static double thresholdArrowLengthPercent = 0.25;
-    public static double thresholdBlocksSizePercent = 0.5;
+    public static double thresholdBlocksSizePercent = 0.6;
 
     // probabilities
     public static double arrowContinueProbability = 0.98;       // 0.98 is best
-    public static double arrowLeftTurnProbability = 0.00;
-    public static double arrowRightTurnProbability = 0.00;
+    public static double arrowLeftTurnProbability = 0.20;
+    public static double arrowRightTurnProbability = 0.20;
     public static double arrowNoTurnProbability = 1.0 - arrowLeftTurnProbability - arrowRightTurnProbability;
     // block prob:
-    public static double oneMoreCellProbability = 0.5;
+    public static double oneMoreCellProbability = 0.7;
     public static double oneMoreBlockProbability = 1;
-
-
 
     // Random
     private static Random rand = new Random();
@@ -43,10 +41,6 @@ public class EvolominoGenerator {
         // set up for DEBUG
 //        rand.setSeed(12323); // блок уполз через границу!
 
-        // TODO(
-        //  1. Why we can't generate only straight arrows?
-        //  2. Why blocks are so simple in form?
-        //  )
 
         int tries = 0;
         int generatedArrowsCnt = 0;
@@ -155,7 +149,7 @@ public class EvolominoGenerator {
                         ++placedBlockCnt;
 
                         block = (ArrayList<Integer>) newBlock.clone();
-                        anchorCellIndex += newAnchorIndex + 2;
+                        anchorCellIndex += newAnchorIndex + 1;
 
                         blockIsPlaced = true;
                         break;
@@ -194,7 +188,7 @@ public class EvolominoGenerator {
             if (p.field[i] < CellType.EMPTY_WITHSQUARE.ordinal()) continue;
             if (p.field[i] == CellType.FILLED.ordinal()) continue;
 
-            for (int n: neighbours(i)) {
+            for (int n: freeNeighbours(i)) {
                 p.field[n] = CellType.FILLED.ordinal();
             }
         }
@@ -334,7 +328,7 @@ public class EvolominoGenerator {
             ) {
         ArrayList<Integer> neighbours = new ArrayList<Integer>(0);
         for (int x: block) {
-            for (int n: neighbours(x)) {
+            for (int n: freeNeighbours(x)) {
                 if (
                         p.field[n] == 0
                     &&  !neighbours.contains(n)
@@ -382,7 +376,12 @@ public class EvolominoGenerator {
         return squares;
     }
 
-    private static ArrayList<Integer> neighbours(int cellNum) {
+    /**
+     *
+     * @param cellNum an index of cell in those we seek a position
+     * @returns a list of indexes where are empty (0) cells
+     */
+    private static ArrayList<Integer> freeNeighbours(int cellNum) {
         ArrayList<Integer> n = new ArrayList<Integer>(0);
         for (int ind: getPossibleDirections(p, cellNum)) {
             switch (ind) {
@@ -408,12 +407,19 @@ public class EvolominoGenerator {
     }
 
     private static int chooseArrowStartCell(Sample p) {
-        // if field is already filled - stop;
-        ArrayList<Integer> shuffledFreeCells = toArrayList(p.field);
-        shuffle(shuffledFreeCells);
+        ArrayList<Integer> freeCells = new ArrayList<>(0);
+        for (int i = 0; i < p.totalCells; ++i) {
+            if (freeNeighbours(i).isEmpty()) continue;
+//            if (neighbours(i).size() < 2) continue;
 
-        if (shuffledFreeCells.isEmpty()) return -1;
-        else return shuffledFreeCells.getFirst();
+            if (p.field[i] == 0) freeCells.add(i);
+
+        }
+
+        shuffle(freeCells);
+
+        if (freeCells.isEmpty()) return -1;
+        else return freeCells.getFirst();
     }
 
     private static ArrayList<Integer> toArrayList(int[] arr) {
@@ -585,7 +591,7 @@ public class EvolominoGenerator {
     }
 
     private static boolean blockGrowthContinue(int blockSize) {
-        if (blockSize == 1) return true;
+//        if (blockSize == 1) return true;
 
         if (blockSize > p.totalCells / 4) return false;
 
