@@ -4,6 +4,8 @@ import evolomino.enums.CellType;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
 
@@ -94,6 +96,28 @@ public class Sample implements Cloneable {
             return clone;
         } catch (CloneNotSupportedException e) {
             throw new AssertionError();
+        }
+    }
+
+    public void saveToFile(String fileName) {
+        FileWriter writer;
+
+        try {
+            writer = new FileWriter(fileName);
+
+            writer.write(height + " " + width + "\n");
+            for (int row = 0; row < height; ++row) {
+                for (int col = 0; col < width; ++col) {
+                    writer.write(field[row * width + col] + " ");
+                }
+                writer.write("\n");
+            }
+
+            System.out.println("Saved as '" + fileName + "'");
+
+            writer.close();
+        } catch (IOException e) {
+            System.out.println("Can't open a file for sample export. End.");
         }
     }
 }

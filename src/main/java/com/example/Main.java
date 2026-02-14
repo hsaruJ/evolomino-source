@@ -2,15 +2,22 @@ package com.example;
 
 import evolomino.Evolomino;
 import evolomino.Sample;
+import painter.EvolominoPainter;
 
 import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        Sample s = EvolominoGenerator.GenerateEvolomino(3, 3);
+        Sample s = EvolominoGenerator.GenerateEvolomino(15, 15);
 
         System.out.println("\n\n---- ---- ---- ---- Generated result: ---- ---- ---- ----");
         s.showField();
+        String fileName = String.format("generatedSamples/%s.txt", "zeroSample" + s.height + "x" + s.width);
+        s.saveToFile(fileName);
+
+        String paintName = String.format("generatedSamples/pictures/%s.png", "zeroSample" + s.height + "x" + s.width);
+
+        EvolominoPainter.paint(s, paintName);
     }
 
     static void showArrowsNReachable(Evolomino evo) {
