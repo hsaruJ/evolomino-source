@@ -28,7 +28,7 @@ public class EvolominoGenerator {
     public static double arrowRightTurnProbability = 0.00;
     public static double arrowNoTurnProbability = 1.0 - arrowLeftTurnProbability - arrowRightTurnProbability;
     // block prob:
-    public static double oneMoreCellProbability = 0.98;
+    public static double oneMoreCellProbability = 0.5;
     public static double oneMoreBlockProbability = 1;
 
 
@@ -42,6 +42,11 @@ public class EvolominoGenerator {
     ) {
         // set up for DEBUG
 //        rand.setSeed(12323); // блок уполз через границу!
+
+        // TODO(
+        //  1. Why we can't generate only straight arrows?
+        //  2. Why blocks are so simple in form?
+        //  )
 
         int tries = 0;
         int generatedArrowsCnt = 0;
@@ -84,14 +89,15 @@ public class EvolominoGenerator {
             direction = updateDirection(direction);
             arrowLastCell = nextCell(p, arrowLastCell, direction, arrow);
 
-            // if there's no next cell, then we can't create arrow
-            if (arrowLastCell == -1) return false;
+            // if there's no next cell, then we can't continue arrow.
+            if (arrowLastCell == -1) break;
 
             // all conditions are met, we add cell to arrow
             arrow.add(arrowLastCell);
         }
 
-        // TODO(Do we need an arrow validation here?)
+        // if arrow's length is incorrect, then this arrow can't exist.
+        if (arrow.size() < 3) return false;
 
         layArrow(arrow);
 
@@ -185,17 +191,17 @@ public class EvolominoGenerator {
 
     private static void fenceBlocks() {
         for (int i = 0; i < p.totalCells; ++i) {
-            if (p.field[i] < 16) continue;
-            if (p.field[i] == CellType.NOTYPE_31.ordinal()) continue;
+            if (p.field[i] < CellType.EMPTY_WITHSQUARE.ordinal()) continue;
+            if (p.field[i] == CellType.FILLED.ordinal()) continue;
 
             for (int n: neighbours(i)) {
-                p.field[n] = CellType.NOTYPE_31.ordinal();
+                p.field[n] = CellType.FILLED.ordinal();
             }
         }
     }
     private static void defenceBlocks() {
         for (int i = 0; i < resultSample.totalCells; ++i) {
-            if (resultSample.field[i] == CellType.NOTYPE_31.ordinal()) resultSample.field[i] = 0;
+            if (resultSample.field[i] == CellType.FILLED.ordinal()) resultSample.field[i] = 0;
         }
     }
 
@@ -225,12 +231,23 @@ public class EvolominoGenerator {
         for (int i = 0; i < group.size(); ++i) {
             currentCellNum = group.get(i);
 
-            for (int neighbourSquareCell: getSquaresInLocal(currentCellNum)) {
+            for (int neighbourSquareCell: getNeighboursInBlock(currentCellNum,  block)) {
                 if (!group.contains(neighbourSquareCell)) group.add(neighbourSquareCell);
             }
         }
 
         return block.size() == group.size();
+    }
+
+    private static ArrayList<Integer> getNeighboursInBlock(int cellNum, ArrayList<Integer> block) {
+        ArrayList<Integer> n = new ArrayList<>(
+                block.stream().filter(x ->
+                        x + 1 == cellNum && (cellNum % p.width != 0)
+                    ||  x - 1 == cellNum && (cellNum % p.width != (p.width - 1))
+                    ||  x + p.width == cellNum
+                    ||  x - p.width == cellNum
+                ).toList());
+        return n;
     }
 
     private static void addPossibleNeighbourCell(ArrayList<Integer> block) {
@@ -308,7 +325,7 @@ public class EvolominoGenerator {
     private static void layBlock(ArrayList<Integer> block) {
         for(int x: block) {
             // TODO(Add a constant to proof the assignment)
-            p.field[x] += 16;
+            p.field[x] += CellType.EMPTY_WITHSQUARE.ordinal();
         }
     }
 
@@ -339,27 +356,27 @@ public class EvolominoGenerator {
 
         if (
                 cellNum >= p.width
-                    && p.field[cellNum - p.width] >= 16
-                    && p.field[cellNum - p.width] != CellType.NOTYPE_31.ordinal()
+                    && p.field[cellNum - p.width] >= CellType.EMPTY_WITHSQUARE.ordinal()
+                    && p.field[cellNum - p.width] != CellType.FILLED.ordinal()
         ) squares.add(cellNum - p.width);
 
         // east
         if (cellNum % p.width != (p.width - 1)
-                && p.field[cellNum + 1] >= 16
-                && p.field[cellNum + 1] != CellType.NOTYPE_31.ordinal()
+                && p.field[cellNum + 1] >= CellType.EMPTY_WITHSQUARE.ordinal()
+                && p.field[cellNum + 1] != CellType.FILLED.ordinal()
         ) squares.add(cellNum + 1);
 
         // south
         if (cellNum + p.width < p.totalCells
-                && p.field[cellNum + p.width] >= 16
-                && p.field[cellNum + p.width] != CellType.NOTYPE_31.ordinal()
+                && p.field[cellNum + p.width] >= CellType.EMPTY_WITHSQUARE.ordinal()
+                && p.field[cellNum + p.width] != CellType.FILLED.ordinal()
         ) squares.add(cellNum + p.width);
 
         // west
         if (
             cellNum % p.width != 0
-                && p.field[cellNum - 1] >= 16
-                && p.field[cellNum - 1] != CellType.NOTYPE_31.ordinal()
+                && p.field[cellNum - 1] >= CellType.EMPTY_WITHSQUARE.ordinal()
+                && p.field[cellNum - 1] != CellType.FILLED.ordinal()
         ) squares.add(cellNum - 1);
 
         return squares;
@@ -492,7 +509,7 @@ public class EvolominoGenerator {
             default -> -1;
         };
 
-        // TODO(Do we need to use this if?
+        // TODO(Do we need to use this if?)
 //        if (arrow.contains(nextCell)) return -1;
 
         return nextCell;

@@ -7,7 +7,7 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        Sample s = EvolominoGenerator.GenerateEvolomino(10, 10);
+        Sample s = EvolominoGenerator.GenerateEvolomino(5, 5);
 
         System.out.println("\n\n---- ---- ---- ---- Generated result: ---- ---- ---- ----");
         s.showField();

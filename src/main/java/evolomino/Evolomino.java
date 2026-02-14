@@ -141,7 +141,7 @@ public class Evolomino {
     }
 
     public static boolean cellWithSquare(CellType t) {
-        return t.ordinal() >= 16 && !t.name().startsWith("NOTYPE");
+        return t.ordinal() >= CellType.EMPTY_WITHSQUARE.ordinal() && !t.name().startsWith("NOTYPE");
     }
 
     public boolean isLastCellOnArrow(int cellNum) {
