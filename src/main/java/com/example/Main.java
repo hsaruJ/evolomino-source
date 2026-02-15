@@ -4,32 +4,49 @@ import evolomino.Evolomino;
 import evolomino.Sample;
 import painter.EvolominoPainter;
 
+import java.io.File;
 import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-//        runBaseSample("sample1");
-
-        Sample s = EvolominoGenerator.GenerateEvolomino(5, 5);
-        s.name = "CarvedSample";
-
-        System.out.println("\n\n---- ---- ---- ---- Generated result: ---- ---- ---- ----");
-        s.showField();
-
-        String fileName = String.format("generatedSamples/%s.txt", "zeroSample" + s.height + "x" + s.width);
-        s.saveToFile(fileName);
-
-        String paintName = String.format("generatedSamples/pictures/%s.png", "zeroSample" + s.height + "x" + s.width);
-        EvolominoPainter.paint(s, paintName);
-
-//        EvolominoModel.solve(new Evolomino(s), 1, s.name, false);
-
-        // TODO(Make an export of solution (marking painting saving))
-
-
-//        String paintName = String.format("generatedSamples/pictures/%s.png", "zeroSample" + s.height + "x" + s.width);
-//        EvolominoPainter.paint(s, paintName);
+        generateNSamples(5, 5, 10);
     }
+
+    static void generateNSamples(int height, int width, int n) {
+        File sizesDir = new File(String.format("generatedSamples/%dx%d", height, width));
+        if (!sizesDir.exists()) {
+            sizesDir.mkdir();
+        }
+        // puzzle, raw, solution.
+
+        for (int i = 0; i < n; ++i) {
+            File sampleDir = new File(sizesDir.getPath() + String.format("/sample%d", i + 1));
+            if (!sampleDir.exists()) {
+                sampleDir.mkdir();
+            } else {
+                continue;
+            }
+
+            String puzzleFileName = sampleDir.getPath() + "/puzzle.png";
+            String rawFileName = sampleDir.getPath() + "/raw.txt";
+            String solutionFileName = sampleDir.getPath() + "/solution.png";
+            Sample s = EvolominoGenerator.GenerateEvolomino(height, width);
+            s.name = "sample" + (i + 1);
+            EvolominoPainter.paint(s, puzzleFileName);
+            s.saveToFile(rawFileName);
+
+            Evolomino evo = new Evolomino(s);
+
+            EvolominoModel.solve(evo, 0, s.name, s);
+            for (int j = 0; j < s.totalCells; ++j) {
+                if (EvolominoModel.x[j].solutionValue() == 1 && s.field[j] < 16)
+                    s.field[j] += 16;
+            }
+
+            EvolominoPainter.paint(s, solutionFileName);
+        }
+    }
+
 
     static void showArrowsNReachable(Evolomino evo) {
         // OHH, it's so trilling to launch it for the first time!
@@ -55,6 +72,7 @@ public class Main {
             System.out.println();
         }
     }
+
 
     static void runBaseSample(String sampleName) {
         Sample testSample = new Sample(String.format("samples/input/%s.txt", sampleName));
