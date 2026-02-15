@@ -8,16 +8,27 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        Sample s = EvolominoGenerator.GenerateEvolomino(15, 15);
+//        runBaseSample("sample1");
+
+        Sample s = EvolominoGenerator.GenerateEvolomino(5, 5);
+        s.name = "CarvedSample";
 
         System.out.println("\n\n---- ---- ---- ---- Generated result: ---- ---- ---- ----");
         s.showField();
+
         String fileName = String.format("generatedSamples/%s.txt", "zeroSample" + s.height + "x" + s.width);
         s.saveToFile(fileName);
 
         String paintName = String.format("generatedSamples/pictures/%s.png", "zeroSample" + s.height + "x" + s.width);
-
         EvolominoPainter.paint(s, paintName);
+
+//        EvolominoModel.solve(new Evolomino(s), 1, s.name, false);
+
+        // TODO(Make an export of solution (marking painting saving))
+
+
+//        String paintName = String.format("generatedSamples/pictures/%s.png", "zeroSample" + s.height + "x" + s.width);
+//        EvolominoPainter.paint(s, paintName);
     }
 
     static void showArrowsNReachable(Evolomino evo) {
@@ -51,7 +62,7 @@ public class Main {
         Evolomino evo = new Evolomino(testSample);
         showArrowsNReachable(evo);
 
-        EvolominoSolverCall.runOrTools(evo, 0, testSample.name);
+        EvolominoModel.solve(evo, 0, testSample.name, testSample);
     }
 
     static void updateAllExports() {
@@ -62,7 +73,7 @@ public class Main {
 
             Evolomino evo = new Evolomino(testSample);
 
-            EvolominoSolverCall.runOrTools(evo, 0, testSample.name);
+            EvolominoModel.solve(evo, 0, testSample.name, testSample);
         }
     }
 

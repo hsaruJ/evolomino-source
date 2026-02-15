@@ -1,5 +1,6 @@
 package com.example;
 
+import evolomino.Evolomino;
 import evolomino.Sample;
 import evolomino.WeighedCell;
 import evolomino.enums.CellType;
@@ -9,8 +10,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 
-import static java.lang.Math.max;
-
 public class EvolominoGenerator {
     private static Sample resultSample;
     private static Sample p;
@@ -19,11 +18,11 @@ public class EvolominoGenerator {
     public static int attemptLimit = 1000;
     public static final int accuracy = 1000;
     // thresholds
-    public static double thresholdArrowLengthPercent = 0.25;
+    public static double thresholdArrowLengthPercent = 0.4;
     public static double thresholdBlocksSizePercent = 0.6;
 
     // probabilities
-    public static double arrowContinueProbability = 0.98;       // 0.98 is best
+    public static double arrowContinueProbability = 0.8;
     public static double arrowLeftTurnProbability = 0.20;
     public static double arrowRightTurnProbability = 0.20;
     public static double arrowNoTurnProbability = 1.0 - arrowLeftTurnProbability - arrowRightTurnProbability;
@@ -33,6 +32,9 @@ public class EvolominoGenerator {
 
     // Random
     private static Random rand = new Random();
+
+    // Memory for last modified cell (carveToUnique)
+    private static boolean hereWasSquare = false;
 
     public static Sample GenerateEvolomino(
             int m,
@@ -45,6 +47,7 @@ public class EvolominoGenerator {
         int tries = 0;
         int generatedArrowsCnt = 0;
         resultSample = new Sample(m, n);
+        resultSample.name = String.format("%dx%d sample %s", m, n, "test");
         p = resultSample.clone();
         while (!stopCondition(resultSample, tries)) {
             if (!TryAddArrow()) {
@@ -62,9 +65,73 @@ public class EvolominoGenerator {
         }
 
         defenceBlocks();
+
+        resultSample = p.clone();
+        CarveToUnique();
+        resultSample = p.clone();
+
         return resultSample;
-        // return CarveToUnique(p);
     }
+
+    private static void CarveToUnique() {
+        // 1. Fill all empty cells.
+        for (int i = 0; i < p.totalCells; ++i) {
+            if (p.field[i] == CellType.EMPTY.ordinal()) {
+                p.field[i] = CellType.FILLED.ordinal();
+            }
+        }
+
+        // Create and shuffle indexes
+        ArrayList<Integer> cellIndices = new ArrayList<>(0);
+        for (int i = 0; i < p.totalCells; ++i) {
+            if (p.field[i] == CellType.FILLED.ordinal()
+            ||  p.field[i] >= CellType.EMPTY_WITHSQUARE.ordinal()) {
+                cellIndices.add(i);
+            }
+        }
+        shuffle(cellIndices);
+
+        for (int ind: cellIndices) {
+            changeCellAtField(ind);
+
+            if (uniqueSolution()) {
+                continue;
+            } else {
+                changeCellAtField(ind);
+            }
+        }
+    }
+
+    private static boolean uniqueSolution() {
+        return !EvolominoModel.solve(new Evolomino(p), 0, p.name, resultSample);
+    }
+
+    private static void changeCellAtField(int cellNum) {
+        // Case one: if there's square, remove it.
+        if (p.field[cellNum] >= CellType.EMPTY_WITHSQUARE.ordinal()) {
+            p.field[cellNum] -= CellType.EMPTY_WITHSQUARE.ordinal();
+            hereWasSquare = true;
+            return;
+        }
+
+        // Case two: if there's filled, make it empty.
+        if (p.field[cellNum] == CellType.FILLED.ordinal()) {
+            p.field[cellNum] = CellType.EMPTY.ordinal();
+            hereWasSquare = false;
+            return;
+        }
+
+        // Case three: redo the square place
+        if (p.field[cellNum] < CellType.EMPTY_WITHSQUARE.ordinal() && hereWasSquare) {
+            p.field[cellNum] += CellType.EMPTY_WITHSQUARE.ordinal();
+            hereWasSquare = false;
+            return;
+        } else {
+            // Case four: it is empty and it was filled
+            p.field[cellNum] = CellType.FILLED.ordinal();
+        }
+    }
+
 
     private static boolean TryAddArrow() {
         // here we'll store our arrow's cells
@@ -194,8 +261,8 @@ public class EvolominoGenerator {
         }
     }
     private static void defenceBlocks() {
-        for (int i = 0; i < resultSample.totalCells; ++i) {
-            if (resultSample.field[i] == CellType.FILLED.ordinal()) resultSample.field[i] = 0;
+        for (int i = 0; i < p.totalCells; ++i) {
+            if (p.field[i] == CellType.FILLED.ordinal()) p.field[i] = 0;
         }
     }
 

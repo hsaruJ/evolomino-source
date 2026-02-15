@@ -3,11 +3,12 @@ package com.example;
 import com.google.ortools.Loader;
 import com.google.ortools.init.OrToolsVersion;
 import com.google.ortools.linearsolver.MPConstraint;
-import com.google.ortools.linearsolver.MPObjective;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPVariable;
+import com.google.ortools.sat.SolutionCallback;
 import dataclasses.Shift;
 import evolomino.Evolomino;
+import evolomino.Sample;
 import evolomino.enums.CellType;
 
 import java.io.FileWriter;
@@ -16,24 +17,36 @@ import java.util.*;
 
 import static java.lang.Math.abs;
 
-public final class EvolominoSolverCall {
-    public static void runOrTools(
+public final class EvolominoModel {
+    private static MPSolver solver;
+    private static Evolomino solution;
+
+    public static MPVariable[] x;
+    public static MPVariable[][][] y;
+    public static MPVariable[][][] F;
+    public static MPVariable[][][][] f;
+    public static MPVariable[][][] t;
+
+    private static ArrayList<Shift> allowedShifts;
+
+
+    public static void prepareModel(
             Evolomino evo,
-            int solutionVariablesOutputDepth,
-            String sampleName
+            String sampleName,
+            Sample baseSol
     ) {
         Loader.loadNativeLibraries();
 
         // Show the version of the solver
-        System.out.println("Google OR-Tools version: " + OrToolsVersion.getVersionString());
+//        System.out.println("Google OR-Tools version: " + OrToolsVersion.getVersionString());
 
         // Create the linear solver with the GLOP backend.
-//        MPSolver solver = MPSolver.createSolver("SCIP");
-//        MPSolver solver = MPSolver.createSolver("BOP");
-        MPSolver solver = MPSolver.createSolver("SAT");
+//        solver = MPSolver.createSolver("SCIP");
+        solver = MPSolver.createSolver("BOP");
+//        solver = MPSolver.createSolver("SAT");
         if (solver == null) {
             System.out.println("Could not create solver SCIP");
-            return;
+            return ;
         }
 
         // init parameters
@@ -66,11 +79,31 @@ public final class EvolominoSolverCall {
         // ---- ---- ---- V A R I A B L E S  P A R T ---- ---- --- //
 
         // x_i:
-        MPVariable[] x = new MPVariable[cellCount];
-
+        x = new MPVariable[cellCount];
         for (int i = 0; i < cellCount; ++i) {
             x[i] = solver.makeBoolVar("x" + (i + 1));
         }
+
+        // Preprocessing
+        MPConstraint uniqueness = solver.makeConstraint(
+                "There is at least one difference from this solution"
+        );
+        int filledCellsCounter = 0;
+        for (int i = 0; i < evo.totalCells; ++i) {
+            if (baseSol.field[i] >= CellType.EMPTY_WITHSQUARE.ordinal()) {
+                uniqueness.setCoefficient(
+                        x[i],
+                        -1.0
+                );
+                ++filledCellsCounter;
+            } else {
+                uniqueness.setCoefficient(
+                        x[i],
+                        1.0
+                );
+            }
+        }
+        uniqueness.setLb(1 - filledCellsCounter);
 
         // Preprocessing
         for (int i = 0; i < cellCount; ++i) {
@@ -80,14 +113,15 @@ public final class EvolominoSolverCall {
                 x[i].setBounds(0.0, 0.0);
         }
 
+
         // b_ak
         MPVariable[][] b = new MPVariable[arrowCount][kMax];
         for (int a = 0; a < arrowCount; ++a) {
             for (int k = 0; k < kOfArrow[a]; ++k) {
                 b[a][k] = solver.makeBoolVar(
-                    "b"
-                        + "_" + (a + 1)
-                        + "_" + (k + 1)
+                        "b"
+                                + "_" + (a + 1)
+                                + "_" + (k + 1)
                 );
             }
 
@@ -97,16 +131,16 @@ public final class EvolominoSolverCall {
         }
 
         // y_a_k_i
-        MPVariable[][][] y = new MPVariable[arrowCount][kMax][cellCount];
+        y = new MPVariable[arrowCount][kMax][cellCount];
         for (int a = 0; a < arrowCount; ++a) {
             for  (int k = 0; k < kOfArrow[a]; ++k) {
                 for (int i: evo.reachableCells.get(a)) {
                     y[a][k][i] = solver.makeBoolVar(
-                        "y"
-                            + "_" + (a + 1)
-                            + "_" + (k + 1)
-                            + "_" + (i + 1)
-                        );
+                            "y"
+                                    + "_" + (a + 1)
+                                    + "_" + (k + 1)
+                                    + "_" + (i + 1)
+                    );
                 }
             }
         }
@@ -116,11 +150,11 @@ public final class EvolominoSolverCall {
         for (int a = 0; a < arrowCount; ++a) {
             for (int k = 0; k < kOfArrow[a]; ++k) {
                 N[a][k] = solver.makeIntVar(
-                    0.0,
-                    cellCount / 2.0,
-                    "N"
-                            + "_" + (a + 1)
-                            + "_" + (k + 1)
+                        0.0,
+                        cellCount / 2.0,
+                        "N"
+                                + "_" + (a + 1)
+                                + "_" + (k + 1)
                 );
             }
 
@@ -129,7 +163,7 @@ public final class EvolominoSolverCall {
         }
 
         // f_akij
-        MPVariable[][][][] f = new MPVariable[arrowCount][kMax][cellCount][4];
+        f = new MPVariable[arrowCount][kMax][cellCount][4];
         // for each arrow
         for (int a = 0; a < arrowCount; ++a) {
             // for each block on each arrow
@@ -147,22 +181,22 @@ public final class EvolominoSolverCall {
                         if (evo.isArrow(evo.area[i]) && evo.isArrow(evo.area[neighbours[j]])) continue;
 
                         f[a][k][i][j] =
-                            solver.makeIntVar(
-                                0.0,
-                                cellCount,
-                                "f"
-                                    + "_" + (a + 1)
-                                    + "_" + (k + 1)
-                                    + "_" + (i + 1)
-                                    + "_" + (neighbours[j] + 1)
-                            );
+                                solver.makeIntVar(
+                                        0.0,
+                                        cellCount,
+                                        "f"
+                                                + "_" + (a + 1)
+                                                + "_" + (k + 1)
+                                                + "_" + (i + 1)
+                                                + "_" + (neighbours[j] + 1)
+                                );
                     }
                 }
             }
         }
 
         // F_aki
-        MPVariable[][][] F = new MPVariable[arrowCount][kMax][maxArrowSize];
+        F = new MPVariable[arrowCount][kMax][maxArrowSize];
         for (int a = 0; a < arrowCount; ++a) {
             for (int k = 0; k < kOfArrow[a]; ++k) {
                 // index that shows order of a cell in an arrow
@@ -170,10 +204,10 @@ public final class EvolominoSolverCall {
                     F[a][k][iFromArrow] = solver.makeIntVar(
                             0.0,
                             M,
-                        "F"
-                            + "_" + (a + 1)
-                            + "_" + (k + 1)
-                            + "_" + (evo.arrows.get(a).get(iFromArrow) + 1)
+                            "F"
+                                    + "_" + (a + 1)
+                                    + "_" + (k + 1)
+                                    + "_" + (evo.arrows.get(a).get(iFromArrow) + 1)
                     );
                 }
             }
@@ -188,8 +222,8 @@ public final class EvolominoSolverCall {
         for (int j = -cellCount + 1; j <= (cellCount - 1); ++j) {
             if (
                     j == -colCount || j == colCount ||
-                    j == -1 || j == 1 ||
-                    j == 0
+                            j == -1 || j == 1 ||
+                            j == 0
             ) continue;
 
             shifts.addLast(j);
@@ -200,8 +234,8 @@ public final class EvolominoSolverCall {
             T[last] = j; ++last;
         }
 
-        // t_akj
-        MPVariable[][][] t = new MPVariable[arrowCount][kMax][cellCount * 2];
+        // \t_akj
+        t = new MPVariable[arrowCount][kMax][cellCount * 2];
         // Idea: init shift only if you see is in the constraint!
         // Indexing: use (cellCount - 1) + j. Also use existing_shifts (T)
 
@@ -225,8 +259,8 @@ public final class EvolominoSolverCall {
             for (int a = 0; a < arrowCount; ++a) {
                 for (int k = 0; k < kOfArrow[a]; ++k) {
                     cellBoundConstraint[i].setCoefficient(
-                        y[a][k][i],
-                        1.0
+                            y[a][k][i],
+                            1.0
                     );
                 }
             }
@@ -236,22 +270,6 @@ public final class EvolominoSolverCall {
                     -1.0
             );
         }
-
-//        // TODO(Move this constraint to the preprocessing)
-//        // Bounding ----
-//        // y^{ak}_i = 0  \forall i not from a
-//        for (int a = 0; a < arrowCount; ++a) {
-//            for (int k = 0; k < kOfArrow[a]; ++k) {
-//                for (int aStrix = 0; aStrix < arrowCount; ++aStrix) {
-//                    if (aStrix == a) continue;
-//
-//                    for (int i: evo.arrows.get(aStrix))  {
-//
-//                        y[a][k][i].setBounds(0.0, 0.0);
-//                    }
-//                }
-//            }
-//        }
 
         // Each two cells on arrow can't contain squares simultaneously
         // x_i + x_{\next{i}} \leq 1
@@ -265,7 +283,7 @@ public final class EvolominoSolverCall {
 
                 squaresOnBothNeighboursBanConstraint[a][j] = solver.makeConstraint(
                         "Can't set squares on two neighbour cells at the same time "
-                            + (cellNum + 1) + " and " + (next + 1)
+                                + (cellNum + 1) + " and " + (next + 1)
                 );
                 squaresOnBothNeighboursBanConstraint[a][j].setUb(1.0);
 
@@ -274,8 +292,8 @@ public final class EvolominoSolverCall {
                         1.0
                 );
                 squaresOnBothNeighboursBanConstraint[a][j].setCoefficient(
-                    x[next],
-                    1.0
+                        x[next],
+                        1.0
                 );
 
             }
@@ -288,8 +306,8 @@ public final class EvolominoSolverCall {
             for (int k = 0; k < kOfArrow[a]; ++k) {
                 blockActivationConstraint[a][k] = solver.makeConstraint(
                         "Block " + (k + 1)
-                            + " from arrow " + (a + 1)
-                            + " is active if contains square"
+                                + " from arrow " + (a + 1)
+                                + " is active if contains square"
                 );
                 blockActivationConstraint[a][k].setLb(0.0);
 
@@ -315,8 +333,8 @@ public final class EvolominoSolverCall {
             for (int k = 0; k < kOfArrow[a]; ++k) {
                 blockDeactivationConstraint[a][k] = solver.makeConstraint(
                         "Block " + (k + 1)
-                            + " from arrow " + (a + 1)
-                            + " is inactive if empty"
+                                + " from arrow " + (a + 1)
+                                + " is inactive if empty"
                 );
                 blockDeactivationConstraint[a][k].setUb(0.0);
 
@@ -434,14 +452,14 @@ public final class EvolominoSolverCall {
                             if (!evo.reachableCells.get(aStrix).contains(i + 1)) continue;
 
                             blocksTouchBanConstraint[0][a][aStrix][k][kStrix][i] =
-                                solver.makeConstraint(
-                                    "Blocks "
-                                        + (k + 1) + "," + (kStrix + 1)
-                                        + " (arrows " + (a + 1) + "," + (aStrix + 1) + ")"
-                                        + " can't contain cells "
-                                        + (i + 1) + ", " + (i + 1 + 1)
-                                        + " simultaneously (pt.1)"
-                                );
+                                    solver.makeConstraint(
+                                            "Blocks "
+                                                    + (k + 1) + "," + (kStrix + 1)
+                                                    + " (arrows " + (a + 1) + "," + (aStrix + 1) + ")"
+                                                    + " can't contain cells "
+                                                    + (i + 1) + ", " + (i + 1 + 1)
+                                                    + " simultaneously (pt.1)"
+                                    );
                             blocksTouchBanConstraint[0][a][aStrix][k][kStrix][i].setUb(1.0);
 
                             blocksTouchBanConstraint[0][a][aStrix][k][kStrix][i].setCoefficient(
@@ -460,14 +478,14 @@ public final class EvolominoSolverCall {
                             if (!evo.reachableCells.get(aStrix).contains(i + evo.width)) continue;
 
                             blocksTouchBanConstraint[1][a][aStrix][k][kStrix][i] =
-                                solver.makeConstraint(
-                                    "Blocks "
-                                        + (k + 1) + "," + (kStrix + 1)
-                                        + " (arrows " + (a + 1) + "," + (aStrix + 1) + ")"
-                                        + " can't contain cells "
-                                        + (i + 1) + ", " + (i + evo.width + 1)
-                                        + " simultaneously (pt.2)"
-                                );
+                                    solver.makeConstraint(
+                                            "Blocks "
+                                                    + (k + 1) + "," + (kStrix + 1)
+                                                    + " (arrows " + (a + 1) + "," + (aStrix + 1) + ")"
+                                                    + " can't contain cells "
+                                                    + (i + 1) + ", " + (i + evo.width + 1)
+                                                    + " simultaneously (pt.2)"
+                                    );
                             blocksTouchBanConstraint[1][a][aStrix][k][kStrix][i].setUb(1.0);
 
                             blocksTouchBanConstraint[1][a][aStrix][k][kStrix][i].setCoefficient(
@@ -630,8 +648,8 @@ public final class EvolominoSolverCall {
                         if (neighbours[j] == -1) continue;
 
                         if (
-                            evo.area[neighbours[j]] == CellType.FILLED ||
-                            evo.isArrow(evo.area[neighbours[j]])
+                                evo.area[neighbours[j]] == CellType.FILLED ||
+                                        evo.isArrow(evo.area[neighbours[j]])
                         )
                             neighbours[j] = -1;
                     }
@@ -690,8 +708,8 @@ public final class EvolominoSolverCall {
                         0.0,
                         0.0,
                         "Total flow equals the size of a block"
-                            + " of block " + (k + 1)
-                            + " of arrow " + (a + 1)
+                                + " of block " + (k + 1)
+                                + " of arrow " + (a + 1)
                 );
 
                 for (int i = 0; i < evo.arrows.get(a).size(); ++i) {
@@ -717,9 +735,9 @@ public final class EvolominoSolverCall {
                 for (int i = 0; i < evo.arrows.get(a).size(); ++i) {
                     sourceBelongConstraint[a][k][i] = solver.makeConstraint(
                             "Flow mainSource must be exactly at source cell"
-                                + " for cell " + (i + 1)
-                                + " of block " + (k + 1)
-                                + " of arrow " + (a + 1)
+                                    + " for cell " + (i + 1)
+                                    + " of block " + (k + 1)
+                                    + " of arrow " + (a + 1)
                     );
                     sourceBelongConstraint[a][k][i].setUb(0.0);
 
@@ -768,9 +786,9 @@ public final class EvolominoSolverCall {
 
                         flowSourceConstraint[a][k][i][j] = solver.makeConstraint(
                                 "Flow comes only from cells in a block"
-                                    + " for cells " + (i + 1) + ", " + (neighbours[j] + 1)
-                                    + " of block "  + (k + 1)
-                                    + " of arrow "  + (a + 1)
+                                        + " for cells " + (i + 1) + ", " + (neighbours[j] + 1)
+                                        + " of block "  + (k + 1)
+                                        + " of arrow "  + (a + 1)
                         );
                         flowSourceConstraint[a][k][i][j].setUb(0.0);
 
@@ -799,7 +817,7 @@ public final class EvolominoSolverCall {
 
                         if (
                                 evo.area[neighbours[j]] == CellType.FILLED ||
-                                !evo.reachableCells.get(a).contains(neighbours[j])
+                                        !evo.reachableCells.get(a).contains(neighbours[j])
                         )
                             neighbours[j] = -1;
                     }
@@ -847,7 +865,7 @@ public final class EvolominoSolverCall {
         // y^{ak}_{i + j} - y^{a,k - 1} - t^{ak}_j \geq -1
         MPConstraint[][][][] completeBlockMoveConstraint = new MPConstraint[arrowCount][kMax][cellCount][cellCount * 2];
 
-        ArrayList<Shift> allowedShifts = new ArrayList<Shift>(0);
+        allowedShifts = new ArrayList<Shift>(0);
         for (int a = 0; a < arrowCount; ++a) {
             for (int k = 1; k < kOfArrow[a]; ++k) {
                 for (int i: evo.reachableCells.get(a)) {
@@ -860,7 +878,7 @@ public final class EvolominoSolverCall {
 
                         if (
                                 allowedShifts.isEmpty()
-                             || allowedShifts.stream().noneMatch(u -> sh.compareTo(u) == 0)
+                                        || allowedShifts.stream().noneMatch(u -> sh.compareTo(u) == 0)
                         ) {
                             // define this shift because it is allowed
                             t[a][k][(cellCount - 1) + shift] =
@@ -876,8 +894,8 @@ public final class EvolominoSolverCall {
 
                         completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift] = solver.makeConstraint(
                                 "We can move cell " + (i + 1) + " to cell " + (i2 + 1)
-                                + " of block " + (k + 1)
-                                + " of arrow " + (a + 1)
+                                        + " of block " + (k + 1)
+                                        + " of arrow " + (a + 1)
                         );
                         completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift].setLb(-1.0);
 
@@ -955,8 +973,8 @@ public final class EvolominoSolverCall {
 
                 for (;
                      shiftIndex < allowedShifts.size()
-                     && (allowedShifts.get(shiftIndex).a == a)
-                     && (allowedShifts.get(shiftIndex).k == k); ++shiftIndex) {
+                             && (allowedShifts.get(shiftIndex).a == a)
+                             && (allowedShifts.get(shiftIndex).k == k); ++shiftIndex) {
                     uniqueShiftConstraint[a][k].setCoefficient(
                             t[a][k][(cellCount - 1) + allowedShifts.get(shiftIndex).j],
                             1.0
@@ -973,14 +991,68 @@ public final class EvolominoSolverCall {
         System.out.println("Number of variables = " + solver.numVariables());
         System.out.println("Number of constraints = " + solver.numConstraints());
 
-        // ---- ---- D E B U G  O U T P U T ---- ---- \\
-       exportModelToFile(solver.exportModelAsLpFormat());
+    }
 
-        // Create the objective function
-        MPObjective objective = solver.objective();
-        objective.setOffset(1);
+    public static boolean uniqueSolution(
+            Evolomino evo,
+            String sampleName
+    ) {
+//        prepareModel(evo, sampleName, );
+        final MPSolver.ResultStatus firstStatus = solver.solve();
 
-        objective.setMaximization();
+        if(firstStatus == MPSolver.ResultStatus.INFEASIBLE) {
+            System.out.println("Error! Got infeasible model when tried to check the solution uniqueness");
+            return false;
+        }
+
+        for (int i = 0; i < evo.totalCells; ++i) {
+            if (x[i].solutionValue() == 1 && !Evolomino.cellWithSquare(evo.area[i])) {
+                evo.area[i] = CellType.values()[evo.area[i].ordinal() + CellType.EMPTY_WITHSQUARE.ordinal()];
+            }
+        }
+
+        solver.delete();
+//        prepareModel(evo, sampleName, );
+        MPConstraint uniqueness = solver.makeConstraint(
+                "There is at least one difference from this solution"
+        );
+        int filledCellsCounter = 0;
+        for (int i = 0; i < evo.totalCells; ++i) {
+            if (x[i].solutionValue() == 1) {
+                uniqueness.setCoefficient(
+                        x[i],
+                        -1.0
+                );
+                ++filledCellsCounter;
+            } else {
+                uniqueness.setCoefficient(
+                        x[i],
+                        1.0
+                );
+            }
+        }
+        uniqueness.setLb(1 - filledCellsCounter);
+
+        final MPSolver.ResultStatus secondStatus = solver.solve();
+
+
+        System.out.println("We was here");
+        // so then if there's no another solutions, it will become infeasible
+        if (secondStatus == MPSolver.ResultStatus.INFEASIBLE) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public static boolean solve(
+            Evolomino evo,
+            int solutionVariablesOutputDepth,
+            String sampleName,
+            Sample baseSol
+    ) {
+        prepareModel(evo, sampleName, baseSol);
+//        exportModelToFile(solver.exportModelAsLpFormat());
 
         // central part: here we call .solve() method
         System.out.println("Solving with " + solver.solverVersion());
@@ -989,28 +1061,40 @@ public final class EvolominoSolverCall {
         System.out.println("Status: " + resultStatus);
         if (resultStatus != MPSolver.ResultStatus.OPTIMAL) {
             System.out.println("The problem does not have an optimal solution!");
-            System.out.println("Problem solved in " + solver.iterations() + " iterations");
-            return;
+//            System.out.println("Problem solved in " + solver.iterations() + " iterations");
+            return false;
         }
 
-        try {
-            showSolutionVariables(
-                    solutionVariablesOutputDepth,
-                    x, y, F, f, t, allowedShifts,
-                    evo
-            );
-
-            exportSolutionExtra(
-                    solver,
-                    true
-            );
-        } catch (IOException e) {
-            System.out.println("IO error in an output of solution variables or extra.");
+        // SHOW X
+        System.out.println("(Cells on field) x_i:");
+        for (int row = 0; row < evo.height; ++row) {
+            for (int col = 0; col < evo.width; ++col) {
+                System.out.print(x[row * evo.width + col].solutionValue() + " ");
+            }
+            System.out.println();
         }
+        System.out.println();
+
+        return true;
+
+//        try {
+//            showSolutionVariables(
+//                    solutionVariablesOutputDepth,
+//                    x, y, F, f, t, allowedShifts,
+//                    evo
+//            );
+//
+//            exportSolutionExtra(
+//                    solver,
+//                    true
+//            );
+//        } catch (IOException e) {
+//            System.out.println("IO error in an output of solution variables or extra.");
+//        }
 
     }
 
-    private EvolominoSolverCall() {}
+    private EvolominoModel() {}
 
     static boolean allNeighboursAreArrows(Evolomino evo, int cellNum) {
         return Arrays.stream(evo.getNeighbours(cellNum)).allMatch((int i) -> i == -1 || evo.isArrow(evo.area[i]));
@@ -1162,7 +1246,7 @@ public final class EvolominoSolverCall {
         if (echo) {
             System.out.println("Advanced usage:");
             System.out.println("Problem solved in " + solver.wallTime() + " milliseconds");
-            System.out.println("Problem solved in " + solver.iterations() + " iterations");
+//            System.out.println("Problem solved in " + solver.iterations() + " iterations");
             System.out.println("Problem solved in " + solver.nodes() + " branch-and-bound nodes");
         }
 
@@ -1171,7 +1255,7 @@ public final class EvolominoSolverCall {
         writer = new FileWriter(exportFilePath, true);
         writer.write("Advanced usage:" + "\n");
         writer.write("Problem solved in " + solver.wallTime() + " milliseconds" + "\n");
-        writer.write("Problem solved in " + solver.iterations() + " iterations" + "\n");
+//        writer.write("Problem solved in " + solver.iterations() + " iterations" + "\n");
         writer.write("Problem solved in " + solver.nodes() + " branch-and-bound nodes" + "\n");
         writer.close();
     }

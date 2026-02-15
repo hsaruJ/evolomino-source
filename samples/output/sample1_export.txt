@@ -2610,6 +2610,6 @@ Solution:
 1.0 0.0 1.0 1.0 0.0 
 
 Advanced usage:
-Problem solved in 69 milliseconds
+Problem solved in 182 milliseconds
 Problem solved in 0 iterations
-Problem solved in 0 branch-and-bound nodes
+Problem solved in 1 branch-and-bound nodes
