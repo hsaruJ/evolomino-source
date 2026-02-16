@@ -32,6 +32,7 @@ public class EvolominoGenerator {
 
     // Random
     private static Random rand = new Random();
+    public static int seed = rand.nextInt();
 
     // Memory for last modified cell (carveToUnique)
     private static boolean hereWasSquare = false;
@@ -40,8 +41,8 @@ public class EvolominoGenerator {
             int m,
             int n
     ) {
-        // set up for DEBUG
-//        rand.setSeed(12323); // блок уполз через границу!
+        System.out.println("Puzzle ID: " + seed);
+        rand.setSeed(seed);
 
 
         int tries = 0;
@@ -208,7 +209,6 @@ public class EvolominoGenerator {
                     shiftBlock(newBlock, shift);
 
                     if (isCorrect(newBlock)) {
-                        System.out.println("block to cell " + shuffledArrow.get(newAnchorIndex));
                         addPossibleNeighbourCell(newBlock);
 
                         layBlock(newBlock);

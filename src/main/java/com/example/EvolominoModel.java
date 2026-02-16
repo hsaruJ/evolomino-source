@@ -50,8 +50,9 @@ public final class EvolominoModel {
         }
 
         // init parameters
-        exportFilePath = "samples/output/[]_export.txt";
-        exportFilePath = exportFilePath.replace("[]", sampleName);
+        // TODO(Add a way to setup filePath for saving)
+        exportFilePath = "generatedSamples/5x5/sample1/model.txt";
+//        exportFilePath = exportFilePath.replace("[]", sampleName);
 
         // field sizes
         final int rowCount = evo.height;
@@ -89,7 +90,7 @@ public final class EvolominoModel {
                 "There is at least one difference from this solution"
         );
         int filledCellsCounter = 0;
-        for (int i = 0; i < evo.totalCells; ++i) {
+        for (int i = 0; i < baseSol.totalCells; ++i) {
             if (baseSol.field[i] >= CellType.EMPTY_WITHSQUARE.ordinal()) {
                 uniqueness.setCoefficient(
                         x[i],

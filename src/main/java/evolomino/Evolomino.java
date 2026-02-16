@@ -67,22 +67,22 @@ public class Evolomino {
         reachableCells = new ArrayList<ArrayList<Integer>>(0);
 
         for (int a = 0; a < arrows.size(); ++a) {
+            if (a == 1) {
+                a = 1;
+            }
             reachableCells.addLast(new ArrayList<Integer>());
 
             boolean[] visited = new boolean[totalCells];
             int currentCell = -1;
-            for (int c = 0; c < totalCells; ++c) visited[c] = false;
 
-            // beginning of an BFS: first cell
-            currentCell = arrows.get(a).getFirst();
-            reachableCells.get(a).add(currentCell);
-            visited[currentCell] = true;
+            // beginning of an BFS: let's add all arrow's cells into queue;
+            for (int arrowCell: arrows.get(a)) {
+                reachableCells.get(a).add(arrowCell);
+                visited[arrowCell] = true;
+            }
 
             for (int i = 0; i < reachableCells.get(a).size(); ++i) {
                 currentCell = reachableCells.get(a).get(i);
-
-                if (currentCell + 1 == 12)
-                    currentCell = 11;
 
                 for (int neighbourCellNum : getNeighbours(currentCell)) {
                     if  (neighbourCellNum == -1) continue;
@@ -270,6 +270,8 @@ public class Evolomino {
                         area[nextCellNum] == FILLED
         )
             return cellNum;
+
+        if (getPrevious(nextCellNum) != cellNum) return cellNum;
 
         return nextCellNum;
     }

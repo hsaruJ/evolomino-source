@@ -9,10 +9,23 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        generateNSamples(5, 5, 10);
+        generateNSamples(5, 5, 1, true);
     }
 
-    static void generateNSamples(int height, int width, int n) {
+    static void checkExactSample() {
+        Sample s = new Sample("generatedSamples/5x5/sample1/raw.txt");
+        s.name = "id" + -1956855797;
+
+        Evolomino evo = new Evolomino(s);
+        showArrowsNReachable(evo);
+        EvolominoModel.solve(evo, 0, s.name, s);
+
+//        generateNSamples(5, 5, 1, true);
+
+        // tested sample id's: -1956855797
+    }
+
+    static void generateNSamples(int height, int width, int n, boolean override) {
         File sizesDir = new File(String.format("generatedSamples/%dx%d", height, width));
         if (!sizesDir.exists()) {
             sizesDir.mkdir();
@@ -23,7 +36,7 @@ public class Main {
             File sampleDir = new File(sizesDir.getPath() + String.format("/sample%d", i + 1));
             if (!sampleDir.exists()) {
                 sampleDir.mkdir();
-            } else {
+            } else if (!override) {
                 continue;
             }
 
