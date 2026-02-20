@@ -154,9 +154,14 @@ public class EvolominoGenerator {
             // if there's no next cell, then we can't continue arrow.
             if (arrowLastCell == -1) break;
 
+            // if we see a self-intersected arrow, then we can't continue.
+            if (arrow.contains(arrowLastCell)) break;
+
             // all conditions are met, we add cell to arrow
             arrow.add(arrowLastCell);
         }
+
+
 
         // if arrow's length is incorrect, then this arrow can't exist.
         if (arrow.size() < 3) return false;
