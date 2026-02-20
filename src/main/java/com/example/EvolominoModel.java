@@ -42,8 +42,8 @@ public final class EvolominoModel {
 
         // Create the linear solver with the GLOP backend.
 //        solver = MPSolver.createSolver("SCIP");
-        solver = MPSolver.createSolver("BOP");
-//        solver = MPSolver.createSolver("SAT");
+//        solver = MPSolver.createSolver("BOP");
+        solver = MPSolver.createSolver("SAT");
         if (solver == null) {
             System.out.println("Could not create solver SCIP");
             return ;

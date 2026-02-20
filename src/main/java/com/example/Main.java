@@ -9,7 +9,7 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        generateNSamples(5, 5, 1, true);
+        generateNSamples(10, 10, 50, false);
     }
 
     static void checkExactSample() {
@@ -19,8 +19,6 @@ public class Main {
         Evolomino evo = new Evolomino(s);
         showArrowsNReachable(evo);
         EvolominoModel.solve(evo, 0, s.name, s);
-
-//        generateNSamples(5, 5, 1, true);
 
         // tested sample id's: -1956855797
     }

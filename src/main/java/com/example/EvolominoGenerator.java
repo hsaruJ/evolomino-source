@@ -23,8 +23,8 @@ public class EvolominoGenerator {
 
     // probabilities
     public static double arrowContinueProbability = 0.8;
-    public static double arrowLeftTurnProbability = 0.20;
-    public static double arrowRightTurnProbability = 0.20;
+    public static double arrowLeftTurnProbability = 0.15;
+    public static double arrowRightTurnProbability = 0.15;
     public static double arrowNoTurnProbability = 1.0 - arrowLeftTurnProbability - arrowRightTurnProbability;
     // block prob:
     public static double oneMoreCellProbability = 0.7;
@@ -41,8 +41,8 @@ public class EvolominoGenerator {
             int m,
             int n
     ) {
-        System.out.println("Puzzle ID: " + seed);
-        rand.setSeed(seed);
+//        System.out.println("Puzzle ID: " + seed);
+//        rand.setSeed(seed);
 
 
         int tries = 0;
