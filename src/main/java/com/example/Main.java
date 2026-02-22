@@ -9,7 +9,27 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        generateNSamples(12, 12, 18, false);
+        int height = 16, width = 16, amount = 10;
+        boolean override = false;
+
+        long mStart = System.currentTimeMillis();
+        generateNSamples(height, width, amount, override);
+        long mFinish = System.currentTimeMillis();
+        System.out.println("total time for " + amount + " " + height + "x" + width +" samples (ms): " + (mFinish - mStart));
+
+        // 14x14 50 samples
+        // 0 32 9 13 14 14 17 11 18 10 11 14 5 7 7 22 14 24 15 25 9 12 10 16 10 13 10 5 8 10 34 18 19 14 12 10 14 13 8 13 10 9 11 15 14 116 17 17 54 19
+        // total time for 50 14x14 samples (ms): 846581
+
+        // 14x14 50 samples unique
+        // 211 255 306 170 462 448 250 117 306 336 491 300 726 315 240 295 229 346 267 730 241 381 104 81 229 176 91 120 145 204 158 77 118 196 248 216 63 219 146 165 204 91 35 167 100 93 238 194 215 153
+        // total time for 50 14x14 samples (ms): 11692074
+
+        // 15x15 50 samples
+        // 0 0 0 0 0 0 0 0 0 0 0 21 19 34 97 30 111 51 20 61 42 67 59 28 22 71 24 56 26 99 32 38 22 48 14 75 52 62 70 69 65 333 45 67 23 23 31 16 38 45
+        // total time for 50 15x15 samples (ms): 2124416
+
+
     }
 
     static void checkExactSample() {
@@ -30,6 +50,9 @@ public class Main {
         }
         // puzzle, raw, solution.
 
+        long[] seconds = new long[n];
+
+
         for (int i = 0; i < n; ++i) {
             File sampleDir = new File(sizesDir.getPath() + String.format("/sample%d", i + 1));
             if (!sampleDir.exists()) {
@@ -37,6 +60,8 @@ public class Main {
             } else if (!override) {
                 continue;
             }
+
+            seconds[i] = System.currentTimeMillis();
 
             String puzzleFileName = sampleDir.getPath() + "/puzzle.png";
             String rawFileName = sampleDir.getPath() + "/raw.txt";
@@ -55,7 +80,15 @@ public class Main {
             }
 
             EvolominoPainter.paint(s, solutionFileName);
+
+            seconds[i] = System.currentTimeMillis() - seconds[i];
+            seconds[i] /= 1000;
         }
+
+        for (int i = 0; i < n; ++i) {
+            System.out.print(seconds[i] + " ");
+        }
+        System.out.println();
     }
 
 

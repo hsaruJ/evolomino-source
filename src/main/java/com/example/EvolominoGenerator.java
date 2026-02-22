@@ -10,6 +10,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 
+import static java.lang.Math.max;
+
 public class EvolominoGenerator {
     private static Sample resultSample;
     private static Sample p;
@@ -22,13 +24,20 @@ public class EvolominoGenerator {
     public static double thresholdBlocksSizePercent = 0.6;
 
     // probabilities
-    public static double arrowContinueProbability = 0.8;
+    public static double arrowContinueProbability = 0.9;
     public static double arrowLeftTurnProbability = 0.15;
     public static double arrowRightTurnProbability = 0.15;
     public static double arrowNoTurnProbability = 1.0 - arrowLeftTurnProbability - arrowRightTurnProbability;
     // block prob:
     public static double oneMoreCellProbability = 0.7;
     public static double oneMoreBlockProbability = 1;
+
+    // Carve type
+    public static boolean uniqueSolutionFlag = false;
+    // Carve prob:
+    public static double fillCellProbability = 0.15;
+    public static double eraseSquareBaseProbability = 0.8;
+    public static double stepBlockLossProbability = 0.15;
 
     // Random
     private static Random rand = new Random();
@@ -64,10 +73,79 @@ public class EvolominoGenerator {
         defenceBlocks();
 
         resultSample = p.clone();
-        CarveToUnique();
+        if (uniqueSolutionFlag) {
+            CarveToUnique();
+        } else {
+            CarveProbably();
+        }
         resultSample = p.clone();
 
         return resultSample;
+    }
+
+    private static void CarveProbably() {
+        // -3 not visited -2 skip, -1 paint black, 0..n paint num
+        int[] fieldPaint = new int[p.field.length];
+        for (int i = 0; i < fieldPaint.length; ++i) {
+            if (p.field[i] == CellType.EMPTY.ordinal()) {
+                fieldPaint[i] = -1;
+            } else if (
+                    p.field[i] == CellType.FILLED.ordinal()
+                 || p.field[i] < CellType.EMPTY_WITHSQUARE.ordinal()
+            ) {
+                fieldPaint[i] = -2;
+            } else if (p.field[i] != CellType.EMPTY_WITHSQUARE.ordinal()) {
+                fieldPaint[i] = 0;
+            } else {
+                fieldPaint[i] = -3;
+            }
+        }
+
+        // q init and anchor cell adding
+        ArrayList<Integer> q = new ArrayList<Integer>(0);
+        for (int i = 0; i < fieldPaint.length; ++i) {
+            if (fieldPaint[i] != 0) continue;
+
+            q.add(i);
+        }
+
+        // bfs
+        int currentCell = 0xDEADBEEF;
+        for (int qInd = 0; qInd < q.size(); ++qInd) {
+            currentCell = q.get(qInd);
+
+            for (int n: getSquaresInLocal(currentCell)) {
+                if (fieldPaint[n] == -3) {
+                    fieldPaint[n] = fieldPaint[currentCell] + 1;
+                    q.add(n);
+                }
+            }
+        }
+
+        // After all, Carve the field.
+        for (int i = 0; i < p.field.length; ++i) {
+            switch (fieldPaint[i]) {
+                case -3:
+                    System.out.println("---- ---- Error in CarveProbably() at cell" + (i + 1));
+                    return;
+                case -2:
+                    break;
+                case -1:
+                    if (fillCell()) {
+                        p.field[i] = CellType.FILLED.ordinal();
+                    }
+                    break;
+                default:
+                    if (fieldPaint[i] < -3) {
+                        System.out.println("---- ---- Error in CarveProbably() at cell" + (i + 1));
+                        break;
+                    }
+                    if (eraseSquare(fieldPaint[i])) {
+                        p.field[i] -= CellType.EMPTY_WITHSQUARE.ordinal();
+                    }
+                    break;
+            }
+        }
     }
 
     private static void CarveToUnique() {
@@ -129,7 +207,6 @@ public class EvolominoGenerator {
         }
     }
 
-
     private static boolean TryAddArrow() {
         // here we'll store our arrow's cells
         ArrayList<Integer> arrow = new ArrayList<>(0);
@@ -157,8 +234,6 @@ public class EvolominoGenerator {
             arrow.add(arrowLastCell);
         }
 
-
-
         // if arrow's length is incorrect, then this arrow can't exist.
         if (arrow.size() < 3) return false;
 
@@ -181,8 +256,6 @@ public class EvolominoGenerator {
 
         // so, then we will grow block!
         ArrayList<Integer> block = growBlock(anchorCell, arrow);
-
-
 
         // place block at the p. We will do like that every time
         layBlock(block);
@@ -367,9 +440,10 @@ public class EvolominoGenerator {
 
         ArrayList<WeighedCell> toSort = new ArrayList<WeighedCell>(0);
         for (int i = leftIndex; i < arrow.size() - rightBorder; ++i) {
+            long w = (arrow.size() - i + leftIndex);
             toSort.add(new WeighedCell(
                     -Math.log(rand.nextInt(accuracy) / (double) accuracy)
-                            / (double)(arrow.size() - i + leftIndex), arrow.get(i)));
+                            / (double)(w * w), arrow.get(i)));
         }
 
         Comparator<WeighedCell> cmp = Comparator.comparing(WeighedCell::getWeight);
@@ -692,5 +766,12 @@ public class EvolominoGenerator {
 
     private static boolean blockPlacingContinue() {
         return rand.nextInt(accuracy) <= accuracy * oneMoreBlockProbability;
+    }
+
+    private static boolean fillCell() {
+        return rand.nextInt(accuracy) <= accuracy * fillCellProbability;
+    }
+    private static boolean eraseSquare(int length) {
+        return  rand.nextInt(accuracy) <= accuracy * max(0.05, (eraseSquareBaseProbability - stepBlockLossProbability * length));
     }
 }
