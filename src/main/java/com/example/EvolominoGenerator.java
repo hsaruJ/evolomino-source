@@ -235,11 +235,30 @@ public class EvolominoGenerator {
         // if we hadn't placed second block, then the arrow can't exist
         if (placedBlockCnt == 1) return false;
 
+        // if first block's size is 2,
+        //  and it's placed longer than at second block of arrow,
+        //  and there's a place for one another cell on the beginning of an arrow,
+        //  then place it
+        if ((block.size() - placedBlockCnt + 1) == 2) addFirstOneCellBlock(arrow);
 
         // if after placing all blocks puzzle stay solvable, then the arrow can exist.
         // solution is acquired to be unique.
         return !uniqueSolution();
     }
+
+    private static void addFirstOneCellBlock(ArrayList<Integer> arrow) {
+        for (int i: arrow) {
+            if (p.field[i] >= CellType.EMPTY_WITHSQUARE.ordinal()) return;
+
+            if (noSquaresInLocal(i)) {
+                p.field[i] += CellType.EMPTY_WITHSQUARE.ordinal();
+                fenceBlocks();
+                return;
+            }
+
+        }
+    }
+
 
     public static boolean canPlaceNextBlock(int arrowSize, int lastAnchoCell) {
         return lastAnchoCell + 2 < arrowSize;
