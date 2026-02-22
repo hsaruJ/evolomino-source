@@ -9,7 +9,7 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
-        generateNSamples(5, 5, 100, false);
+        generateNSamples(12, 12, 18, false);
     }
 
     static void checkExactSample() {

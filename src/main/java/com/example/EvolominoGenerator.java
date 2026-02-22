@@ -41,10 +41,6 @@ public class EvolominoGenerator {
             int m,
             int n
     ) {
-//        System.out.println("Puzzle ID: " + seed);
-//        rand.setSeed(seed);
-
-
         int tries = 0;
         int generatedArrowsCnt = 0;
         resultSample = new Sample(m, n);
@@ -186,6 +182,8 @@ public class EvolominoGenerator {
         // so, then we will grow block!
         ArrayList<Integer> block = growBlock(anchorCell, arrow);
 
+
+
         // place block at the p. We will do like that every time
         layBlock(block);
         // protect one blocks from another using NOTYPE
@@ -237,7 +235,10 @@ public class EvolominoGenerator {
         // if we hadn't placed second block, then the arrow can't exist
         if (placedBlockCnt == 1) return false;
 
-        return true;
+
+        // if after placing all blocks puzzle stay solvable, then the arrow can exist.
+        // solution is acquired to be unique.
+        return !uniqueSolution();
     }
 
     public static boolean canPlaceNextBlock(int arrowSize, int lastAnchoCell) {
