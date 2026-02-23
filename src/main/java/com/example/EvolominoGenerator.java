@@ -316,7 +316,9 @@ public class EvolominoGenerator {
 
         // if after placing all blocks puzzle stay solvable, then the arrow can exist.
         // solution is acquired to be unique.
-        return !uniqueSolution();
+        // TODO(Fix the commented mockup)
+//        return !uniqueSolution();
+        return true;
     }
 
     private static void addFirstOneCellBlock(ArrayList<Integer> arrow) {

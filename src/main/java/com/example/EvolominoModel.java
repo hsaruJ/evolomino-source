@@ -44,10 +44,13 @@ public final class EvolominoModel {
 //        solver = MPSolver.createSolver("SCIP");
 //        solver = MPSolver.createSolver("BOP");
         solver = MPSolver.createSolver("SAT");
+//        solver = MPSolver.createSolver("CBC");
         if (solver == null) {
             System.out.println("Could not create solver SCIP");
             return ;
         }
+
+        solver.setTimeLimit(180000);
 
         // init parameters
         // TODO(Add a way to setup filePath for saving)
@@ -85,26 +88,27 @@ public final class EvolominoModel {
             x[i] = solver.makeBoolVar("x" + (i + 1));
         }
 
-        // Preprocessing
-        MPConstraint uniqueness = solver.makeConstraint(
-                "There is at least one difference from this solution"
-        );
-        int filledCellsCounter = 0;
-        for (int i = 0; i < baseSol.totalCells; ++i) {
-            if (baseSol.field[i] >= CellType.EMPTY_WITHSQUARE.ordinal()) {
-                uniqueness.setCoefficient(
-                        x[i],
-                        -1.0
-                );
-                ++filledCellsCounter;
-            } else {
-                uniqueness.setCoefficient(
-                        x[i],
-                        1.0
-                );
-            }
-        }
-        uniqueness.setLb(1 - filledCellsCounter);
+        // TODO(Separate this condition to an exact field/module)
+        // Preprocessing (commented temporary)
+//        MPConstraint uniqueness = solver.makeConstraint(
+//                "There is at least one difference from this solution"
+//        );
+//        int filledCellsCounter = 0;
+//        for (int i = 0; i < baseSol.totalCells; ++i) {
+//            if (baseSol.field[i] >= CellType.EMPTY_WITHSQUARE.ordinal()) {
+//                uniqueness.setCoefficient(
+//                        x[i],
+//                        -1.0
+//                );
+//                ++filledCellsCounter;
+//            } else {
+//                uniqueness.setCoefficient(
+//                        x[i],
+//                        1.0
+//                );
+//            }
+//        }
+//        uniqueness.setLb(1 - filledCellsCounter);
 
         // Preprocessing
         for (int i = 0; i < cellCount; ++i) {
@@ -538,7 +542,7 @@ public final class EvolominoModel {
             // part 1
             for (int k = 1; k < kOfArrow[a]; ++k) {
                 blockGrowthConstraint[0][a][k] = solver.makeConstraint(
-                        "Block " + (k + 1)
+                        "Block " + (k + 1) + " arrow " + (a + 1)
                                 + " must be +1 size than block " + (k - 1 + 1)
                                 + " (pt.1)"
                 );
@@ -561,7 +565,7 @@ public final class EvolominoModel {
             // part 2
             for (int k = 1; k < kOfArrow[a]; ++k) {
                 blockGrowthConstraint[1][a][k] = solver.makeConstraint(
-                        "Block " + (k + 1)
+                        "Block " + (k + 1) + " arrow " + (a + 1)
                                 + " must be +1 size than block " + (k - 1 + 1)
                                 + " (pt.2)"
                 );
@@ -989,8 +993,8 @@ public final class EvolominoModel {
             }
         }
 
-        System.out.println("Number of variables = " + solver.numVariables());
-        System.out.println("Number of constraints = " + solver.numConstraints());
+//        System.out.println("Number of variables = " + solver.numVariables());
+//        System.out.println("Number of constraints = " + solver.numConstraints());
 
     }
 
@@ -1056,10 +1060,10 @@ public final class EvolominoModel {
 //        exportModelToFile(solver.exportModelAsLpFormat());
 
         // central part: here we call .solve() method
-        System.out.println("Solving with " + solver.solverVersion());
+//        System.out.println("Solving with " + solver.solverVersion());
         final MPSolver.ResultStatus resultStatus = solver.solve();
 
-        System.out.println("Status: " + resultStatus);
+//        System.out.println("Status: " + resultStatus);
         if (resultStatus != MPSolver.ResultStatus.OPTIMAL) {
             System.out.println("The problem does not have an optimal solution!");
 //            System.out.println("Problem solved in " + solver.iterations() + " iterations");
@@ -1067,14 +1071,14 @@ public final class EvolominoModel {
         }
 
         // SHOW X
-        System.out.println("(Cells on field) x_i:");
-        for (int row = 0; row < evo.height; ++row) {
-            for (int col = 0; col < evo.width; ++col) {
-                System.out.print(x[row * evo.width + col].solutionValue() + " ");
-            }
-            System.out.println();
-        }
-        System.out.println();
+//        System.out.println("(Cells on field) x_i:");
+//        for (int row = 0; row < evo.height; ++row) {
+//            for (int col = 0; col < evo.width; ++col) {
+//                System.out.print(x[row * evo.width + col].solutionValue() + " ");
+//            }
+//            System.out.println();
+//        }
+//        System.out.println();
 
         return true;
 

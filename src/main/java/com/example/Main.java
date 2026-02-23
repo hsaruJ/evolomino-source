@@ -5,11 +5,121 @@ import evolomino.Sample;
 import painter.EvolominoPainter;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class Main {
     public static void main(String[] args) {
-        int height = 16, width = 16, amount = 10;
+        profileTest();
+//        for (int i = 16; i < 18; ++i) {
+//            testClass(i);
+//        }
+//        profileTest();
+//        generateNSamples(8, 8, 50, false);
+    }
+
+    static void testClass(int size) {
+        long[] times = new long[50];
+
+        long beginTime;
+        boolean res;
+        Sample s;
+        String fileName;
+        System.out.printf("Progress %dx%d: ", size, size);
+        for (int i = 0; i < 50; ++i) {
+            fileName = String.format("generatedSamples/%dx%d/sample%d/raw.txt", size, size, i + 1);
+            s = new Sample(fileName);
+            beginTime = System.currentTimeMillis();
+            res = EvolominoModel.solve(
+                    new Evolomino(s),
+                    0,
+                    fileName,
+                    s
+            );
+            times[i] = System.currentTimeMillis() - beginTime;
+            System.out.print("#");
+            if (i % 10 == 9) System.out.print("'");
+        }
+        System.out.println();
+
+        double avg = Arrays.stream(times).sum() / (double) 50;
+        double stdDeviation = 0;
+        for (int i = 0; i < 50; ++i) {
+            stdDeviation += Math.pow(times[i] - avg, 2);
+        }
+        stdDeviation /= (double) 50;
+        stdDeviation = Math.sqrt( (50 * stdDeviation) / ((double) 49));
+
+        try {
+            saveToFile(times, avg, stdDeviation, size);
+        } catch (IOException e) {
+            System.out.println("Error while saving test results.");
+        }
+    }
+
+    static void saveToFile(long[] times, double avg, double stdDev, int size) throws IOException{
+        FileWriter fw = new FileWriter("testResults/tests.txt", true);
+
+        fw.write(String.format("Size %dx%d: ", size, size));
+        for(long t: times) {
+            fw.write(t + " ");
+        }
+        fw.write("avg: " + avg + " ");
+        fw.write("dev: " + stdDev + "\n");
+        fw.close();
+    }
+
+    static void profileTest() {
+        final int TESTCNT = 50;
+        long[] timings = new long[TESTCNT];
+
+        for (int i = 0; i < TESTCNT; ++i) {
+            long beginTime = System.currentTimeMillis();
+            if (
+                    EvolominoModel.solve(
+                            new Evolomino(new Sample("generatedSamples/10x10/sample" + (i + 1) + "/raw.txt")),
+                            0,
+                            "test" + (i + 1),
+                            new Sample()
+                    )
+            ) {
+                timings[i] = System.currentTimeMillis() - beginTime;
+                System.out.print("(" + timings[i] + ", " + (i + 1) + "), ");
+            }
+        }
+
+        timings = Arrays.stream(timings).sorted().toArray();
+
+        String testFileName = "testResults/profileTest" + "SAT" +".txt";
+        FileWriter fw = null;
+        try {
+            fw = new FileWriter(testFileName);
+        } catch (IOException e) {
+            System.out.println("Error in printing profile result. Stop! Saved down here:");
+            for (long t: timings) System.out.print(t + " ");
+            System.out.println();
+            return;
+        }
+
+        for (int i = 0; i < TESTCNT; ++i) {
+            try {
+                fw.write(timings[i] + " ");
+            } catch (IOException e) {
+                System.out.println("Error in printing profile result.");
+                return;
+            }
+        }
+        try {
+            fw.close();
+        } catch (IOException e) {
+            return;
+        }
+    }
+
+    static void makeGroupOfSamples() {
+        int height = 17, width = 17, amount = 50;
         boolean override = false;
 
         long mStart = System.currentTimeMillis();
@@ -29,7 +139,15 @@ public class Main {
         // 0 0 0 0 0 0 0 0 0 0 0 21 19 34 97 30 111 51 20 61 42 67 59 28 22 71 24 56 26 99 32 38 22 48 14 75 52 62 70 69 65 333 45 67 23 23 31 16 38 45
         // total time for 50 15x15 samples (ms): 2124416
 
+        // 16x16 10
+        // 45 51 56 70 124 26 52 29 160 68, avg 68,6
+        // 11 5 8 34 5 39 62 17 38 149, avg 37,3
+        // 16 12 60 218 85 43 6 16 21 26 17 12 24 29 167 24 32 33 5 13 88 3 72 9 186 33 39 36 14 29
+        // total time for 10 16x16 samples (ms): 686578 + 373000 + 1383167
 
+        // 17x17
+        // 51 374 10 55 231 197 10 11 25 115 112 22 13 11 14 14 4 30 57 36 121 137 19 40 15 49 101 32 86 91 25 50 10 27 66 32 20 19 15 27 15 45 22 41 21 9 22 5 12 42
+        // total time for 50 17x17 samples (ms): 2635713, avg 52,7
     }
 
     static void checkExactSample() {
