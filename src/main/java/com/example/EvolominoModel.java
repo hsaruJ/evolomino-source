@@ -1,12 +1,13 @@
 package com.example;
 
 import com.google.ortools.Loader;
-import com.google.ortools.init.OrToolsVersion;
 import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPVariable;
-import com.google.ortools.sat.SolutionCallback;
+
 import dataclasses.Shift;
+import dataclasses.Pair;
+
 import evolomino.Evolomino;
 import evolomino.Sample;
 import evolomino.enums.CellType;
@@ -15,11 +16,14 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 
+
+
 import static java.lang.Math.abs;
 
 public final class EvolominoModel {
     private static MPSolver solver;
-    private static Evolomino solution;
+    public static int variableCount = -1;
+    public static int constraintCount = -1;
 
     public static MPVariable[] x;
     public static MPVariable[][][] y;
@@ -27,8 +31,9 @@ public final class EvolominoModel {
     public static MPVariable[][][][] f;
     public static MPVariable[][][] t;
 
+    private static ArrayList<Pair> T;
     private static ArrayList<Shift> allowedShifts;
-
+    private EvolominoModel() {}
 
     public static void prepareModel(
             Evolomino evo,
@@ -41,20 +46,17 @@ public final class EvolominoModel {
 //        System.out.println("Google OR-Tools version: " + OrToolsVersion.getVersionString());
 
         // Create the linear solver with the GLOP backend.
-//        solver = MPSolver.createSolver("SCIP");
-//        solver = MPSolver.createSolver("BOP");
+        // possible alternatives: "BOP", "SCIP", "CBC" (arranged by speed descending)
         solver = MPSolver.createSolver("SAT");
-//        solver = MPSolver.createSolver("CBC");
         if (solver == null) {
-            System.out.println("Could not create solver SCIP");
-            return ;
+            System.out.println("Could not create solver");
+            return;
         }
 
-        solver.setTimeLimit(180000);
+//        solver.setTimeLimit(1000);
 
         // init parameters
         // TODO(Add a way to setup filePath for saving)
-        exportFilePath = "generatedSamples/5x5/sample1/model.txt";
 //        exportFilePath = exportFilePath.replace("[]", sampleName);
 
         // field sizes
@@ -222,26 +224,23 @@ public final class EvolominoModel {
         // TotalShifts: cellCount * 2 - 4
         // But to store them at the indexes we need to store cellCount * 2 - 1
         // And if cellCount == 5 then t[1][2][0] is equal to t_2_3_-4
-        // T part (shifts prepare)
-        ArrayList<Integer> shifts = new ArrayList<Integer>();
-        for (int j = -cellCount + 1; j <= (cellCount - 1); ++j) {
-            if (
-                    j == -colCount || j == colCount ||
-                            j == -1 || j == 1 ||
-                            j == 0
-            ) continue;
 
-            shifts.addLast(j);
-        }
-        int[] T = new int[shifts.size()];
-        int last = 0;
-        for (int j: shifts) {
-            T[last] = j; ++last;
+        // T part (shifts prepare)
+
+        T = new ArrayList<Pair>(100);
+        for (int p = -(rowCount - 1); p <= rowCount - 1; ++p) {
+            for (int q = -(colCount - 1); q <= colCount - 1; ++q) {
+                if (abs(p) + abs(q) <= 1) continue;
+
+                T.add(new Pair(p, q));
+            }
         }
 
         // \t_akj
-        t = new MPVariable[arrowCount][kMax][cellCount * 2];
-        // Idea: init shift only if you see is in the constraint!
+        // indexes of shifts (j) are sync with the T array.
+        // you can get p,q from j by T[j].first, T[j].second.
+        t = new MPVariable[arrowCount][kMax][T.size()];
+        // Idea: init shift only if you see this in the constraint!
         // Indexing: use (cellCount - 1) + j. Also use existing_shifts (T)
 
         // ---- ---- ---- C O N S T R A I N T S  P A R T ---- ---- --- //
@@ -868,7 +867,7 @@ public final class EvolominoModel {
 
         // All cells from previous block must be placed at next block
         // y^{ak}_{i + j} - y^{a,k - 1} - t^{ak}_j \geq -1
-        MPConstraint[][][][] completeBlockMoveConstraint = new MPConstraint[arrowCount][kMax][cellCount][cellCount * 2];
+        MPConstraint[][][][] completeBlockMoveConstraint = new MPConstraint[arrowCount][kMax][cellCount][T.size()];
 
         allowedShifts = new ArrayList<Shift>(0);
         for (int a = 0; a < arrowCount; ++a) {
@@ -876,8 +875,11 @@ public final class EvolominoModel {
                 for (int i: evo.reachableCells.get(a)) {
                     for (int i2: evo.reachableCells.get(a)) {
 
-                        final int shift = i2 - i;
-                        if (Arrays.stream(T).noneMatch(u -> u == shift)) continue;
+
+                        // TODO (required methods: "indexToCoord", "pairDiff")
+                        final Pair shift = indexToCoord(i2, colCount).minus(indexToCoord(i, colCount));
+//                        final Pair shift = new Shift(a, k, new Pair(indDiff / colCount, indDiff % colCount))
+                        if (T.stream().noneMatch(u -> shift.equals(u))) continue;
 
                         Shift sh = new Shift(a, k, shift);
 
@@ -886,35 +888,36 @@ public final class EvolominoModel {
                                         || allowedShifts.stream().noneMatch(u -> sh.compareTo(u) == 0)
                         ) {
                             // define this shift because it is allowed
-                            t[a][k][(cellCount - 1) + shift] =
+                            t[a][k][T.indexOf(shift)] =
                                     solver.makeBoolVar(
                                             "t"
                                                     + "_" + (a + 1)
                                                     + "_" + (k + 1)
-                                                    + (shift < 0 ? "_m" : "_") + abs(shift)
+                                                    + (shift.first < 0 ? "_m" : "_") + abs(shift.first)
+                                                    + (shift.second < 0 ? "_m" : "_") + abs(shift.second)
                                     );
                             // add the index to allowed indexes. Without conditional shifts
                             allowedShifts.addLast(sh);
                         }
 
-                        completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift] = solver.makeConstraint(
+                        completeBlockMoveConstraint[a][k][i][T.indexOf(shift)] = solver.makeConstraint(
                                 "We can move cell " + (i + 1) + " to cell " + (i2 + 1)
                                         + " of block " + (k + 1)
                                         + " of arrow " + (a + 1)
                         );
-                        completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift].setLb(-1.0);
+                        completeBlockMoveConstraint[a][k][i][T.indexOf(shift)].setLb(-1.0);
 
-                        completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift].setCoefficient(
+                        completeBlockMoveConstraint[a][k][i][T.indexOf(shift)].setCoefficient(
                                 y[a][k][i2],
                                 1.0
                         );
-                        completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift].setCoefficient(
+                        completeBlockMoveConstraint[a][k][i][T.indexOf(shift)].setCoefficient(
                                 y[a][k - 1][i],
                                 -1.0
                         );
 
-                        completeBlockMoveConstraint[a][k][i][(cellCount - 1) + shift].setCoefficient(
-                                t[a][k][(cellCount - 1) + shift],
+                        completeBlockMoveConstraint[a][k][i][T.indexOf(shift)].setCoefficient(
+                                t[a][k][T.indexOf(shift)],
                                 -1.0
                         );
                     }
@@ -925,7 +928,7 @@ public final class EvolominoModel {
         allowedShifts.sort((Shift::compareTo));
 
         // Each cell of block must be moved using selected shift
-        // \sum_{j \in T^a_i}t^{ak}_j - y^{a, k-1}_i \geq 0
+        // \sum_{j \in T^a_i}t^{ak}_j - y^{a, k-1}_i - b_ak \geq -1
         MPConstraint[][][] mustMoveAllConstraint = new MPConstraint[arrowCount][kMax][cellCount];
         for (int a = 0; a < arrowCount; ++a) {
             for (int k = 1; k < kOfArrow[a]; ++k) {
@@ -940,10 +943,11 @@ public final class EvolominoModel {
 
                     for (Shift sh: allowedShifts) {
                         if (sh.a != a || sh.k != k) continue;
-                        if (!evo.reachableCells.get(a).contains(i + sh.j)) continue;
+                        if (!evo.reachableCells.get(a).contains(shift(i, sh.sh, colCount))) continue;
+                        if (indexToCoord(i, colCount).plus(sh.sh).outOfBounds(rowCount, colCount)) continue;
 
                         mustMoveAllConstraint[a][k][i].setCoefficient(
-                                t[a][k][(cellCount - 1) + sh.j],
+                                t[a][k][T.indexOf(sh.sh)],
                                 1.0
                         );
                     }
@@ -981,7 +985,7 @@ public final class EvolominoModel {
                              && (allowedShifts.get(shiftIndex).a == a)
                              && (allowedShifts.get(shiftIndex).k == k); ++shiftIndex) {
                     uniqueShiftConstraint[a][k].setCoefficient(
-                            t[a][k][(cellCount - 1) + allowedShifts.get(shiftIndex).j],
+                            t[a][k][T.indexOf(allowedShifts.get(shiftIndex).sh)],
                             1.0
                     );
                 }
@@ -996,6 +1000,8 @@ public final class EvolominoModel {
 //        System.out.println("Number of variables = " + solver.numVariables());
 //        System.out.println("Number of constraints = " + solver.numConstraints());
 
+        variableCount = solver.numVariables();
+        constraintCount = solver.numConstraints();
     }
 
     public static boolean uniqueSolution(
@@ -1057,10 +1063,13 @@ public final class EvolominoModel {
             Sample baseSol
     ) {
         prepareModel(evo, sampleName, baseSol);
+
+        exportFilePath = "archive/model_export.txt";
 //        exportModelToFile(solver.exportModelAsLpFormat());
 
         // central part: here we call .solve() method
 //        System.out.println("Solving with " + solver.solverVersion());
+
         final MPSolver.ResultStatus resultStatus = solver.solve();
 
 //        System.out.println("Status: " + resultStatus);
@@ -1069,6 +1078,8 @@ public final class EvolominoModel {
 //            System.out.println("Problem solved in " + solver.iterations() + " iterations");
             return false;
         }
+
+//        System.out.println("Reduced: " + solver.createSolutionResponseProto().getReducedCostCount());
 
         // SHOW X
 //        System.out.println("(Cells on field) x_i:");
@@ -1080,12 +1091,12 @@ public final class EvolominoModel {
 //        }
 //        System.out.println();
 
-        return true;
+//        return true;
 
 //        try {
-//            showSolutionVariables(
+//            exportSolutionVariables(
 //                    solutionVariablesOutputDepth,
-//                    x, y, F, f, t, allowedShifts,
+//                    x, y, F, f, t, T, allowedShifts,
 //                    evo
 //            );
 //
@@ -1097,9 +1108,16 @@ public final class EvolominoModel {
 //            System.out.println("IO error in an output of solution variables or extra.");
 //        }
 
+        return true;
     }
 
-    private EvolominoModel() {}
+    static int shift(int i, Pair pair, int colCount) {
+        return i + pair.first * colCount + pair.second;
+    }
+
+    static Pair indexToCoord(int ind, int colCount) {
+        return new Pair(ind / colCount, ind % colCount);
+    }
 
     static boolean allNeighboursAreArrows(Evolomino evo, int cellNum) {
         return Arrays.stream(evo.getNeighbours(cellNum)).allMatch((int i) -> i == -1 || evo.isArrow(evo.area[i]));
@@ -1113,13 +1131,14 @@ public final class EvolominoModel {
      *             2 if need x and y and F, f (how the flow works)
      *             3 if need x and y and F, f and t (how the shifts work)
      */
-    static void showSolutionVariables(
+    static void exportSolutionVariables(
             int stage,
             MPVariable[] x,
             MPVariable[][][] y,
             MPVariable[][][] F,
             MPVariable[][][][] f,
             MPVariable[][][] t,
+            ArrayList<Pair> T,
             ArrayList<Shift> allowedShifts,
             Evolomino evo
     ) throws IOException {
@@ -1223,10 +1242,10 @@ public final class EvolominoModel {
                      shiftIndex < allowedShifts.size()
                              && (allowedShifts.get(shiftIndex).a == a)
                              && (allowedShifts.get(shiftIndex).k == k); ++shiftIndex) {
-                    int j = allowedShifts.get(shiftIndex).j;
+                    int ind = T.indexOf(allowedShifts.get(shiftIndex).sh);
                     writer.write(
-                            t[a][k][(evo.area.length - 1) + j].name() + ": "
-                            + t[a][k][(evo.area.length - 1) + j].solutionValue() + "  ");
+                            t[a][k][ind].name() + ": "
+                            + t[a][k][ind].solutionValue() + "  ");
 
                     ++counter;
                     if (counter == 10) {
@@ -1281,4 +1300,5 @@ public final class EvolominoModel {
     }
 
     static private String exportFilePath;
+
 }

@@ -9,22 +9,105 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-        profileTest();
-//        for (int i = 16; i < 18; ++i) {
-//            testClass(i);
-//        }
-//        profileTest();
-//        generateNSamples(8, 8, 50, false);
+//        checkExactSample("generatedSamples/extra/counterexample_11042026/raw.txt");
+//        checkExactSample("generatedSamples/5x5/sample2/raw.txt");
+//        checkExactSample("generatedSamples/15x15/sample2/raw.txt");
+//        checkExactSample("archive/samples/input/sample2.txt");
+    }
+
+    static void changeMetrics(int size) {
+        long[] times = new long[50];
+
+        System.out.printf("Input %dx%d: ", size, size);
+        Scanner in = new Scanner(System.in);
+        for (int i = 0; i < times.length; ++i) {
+            times[i] = in.nextLong();
+        }
+
+        long[] timesCopy = times.clone();
+        timesCopy = Arrays.stream(timesCopy).sorted().toArray();
+
+        double mean = Arrays.stream(times).sum() / (double) 50;
+        double median = (timesCopy[24] + timesCopy[25]) / (double)2;
+        double q25 = timesCopy[12];
+        double q75 = timesCopy[37];
+        double iqr = q75 - q25;
+
+        double stdDeviation = 0;
+        for (int i = 0; i < 50; ++i) {
+            stdDeviation += Math.pow(times[i] - mean, 2);
+        }
+        stdDeviation = Math.sqrt(stdDeviation / (double) 49);
+
+        double tmp = (1.96 * stdDeviation) / Math.sqrt(50);
+        double[] trustInterval = {mean - tmp, mean + tmp};
+
+        try{
+            saveToFile(times, size, mean, stdDeviation, median, iqr, q25, q75, trustInterval);
+        } catch (IOException e) {
+            System.out.println("Error while rewriting test results.");
+        }
+    }
+
+    static void loadVarsNConstrAmount() {
+        int from = 5;
+        int to = 18;
+        int total = to - from + 1;
+        int groupSize = 50;
+
+        int[][] vars = new int[total][groupSize];
+        int[][] constr = new int[total][groupSize];
+
+        String fileName;
+        Sample s;
+        for (int size = from; size <= to; ++size) {
+            System.out.println("size" + size + ": ");
+            for (int i = 0; i < groupSize; ++i) {
+                fileName = String.format("generatedSamples/%dx%d/sample%d/raw.txt", size, size, i + 1);
+                s = new Sample(fileName);
+                EvolominoModel.prepareModel(
+                        new Evolomino(s),
+                        fileName,
+                        s
+                );
+                  vars[size - from][i] = EvolominoModel.variableCount;
+                constr[size - from][i] = EvolominoModel.constraintCount;
+
+                System.out.print("#");
+                if (i % 10 == 9) System.out.print("'");
+            }
+            System.out.println();
+        }
+
+        double[] medianVar = new double[total];
+        double[] medianConstr = new double[total];
+        int[] tmp = new int[groupSize];
+        for (int size = from; size <= to; ++size) {
+            tmp = Arrays.stream(vars[size - from].clone()).sorted().toArray();
+            medianVar[size - from] = (tmp[24] + tmp[25]) / (double)2;
+
+            tmp = Arrays.stream(constr[size - from].clone()).sorted().toArray();
+            medianConstr[size - from] = (tmp[24] + tmp[25]) / (double)2;
+        }
+
+        try {
+            saveNumsOrConstr(vars, from, to, medianVar, "variables");
+            saveNumsOrConstr(constr, from, to, medianConstr, "constraints");
+        } catch (IOException e) {
+            System.out.println("Error while saving variables and constraints amounts");
+        }
     }
 
     static void testClass(int size) {
         long[] times = new long[50];
 
-        long beginTime;
         boolean res;
+        res = EvolominoModel.solve(new Evolomino(new Sample("generatedSamples/12x12/sample1/raw.txt")), 0, "", new Sample());
+        long beginTime;
         Sample s;
         String fileName;
         System.out.printf("Progress %dx%d: ", size, size);
@@ -38,36 +121,75 @@ public class Main {
                     fileName,
                     s
             );
-            times[i] = System.currentTimeMillis() - beginTime;
-            System.out.print("#");
+            if (res) {
+                times[i] = System.currentTimeMillis() - beginTime;
+                System.out.print("#");
+            } else {
+                System.out.println("!");
+                times[i] = -1;
+            }
+
             if (i % 10 == 9) System.out.print("'");
         }
         System.out.println();
 
-        double avg = Arrays.stream(times).sum() / (double) 50;
-        double stdDeviation = 0;
-        for (int i = 0; i < 50; ++i) {
-            stdDeviation += Math.pow(times[i] - avg, 2);
+        for(long t: times) {
+            System.out.print(t + " ");
         }
-        stdDeviation /= (double) 50;
-        stdDeviation = Math.sqrt( (50 * stdDeviation) / ((double) 49));
 
-        try {
-            saveToFile(times, avg, stdDeviation, size);
-        } catch (IOException e) {
-            System.out.println("Error while saving test results.");
-        }
+//        double avg = Arrays.stream(times).sum() / (double) 50;
+//        double stdDeviation = 0;
+//        for (int i = 0; i < 50; ++i) {
+//            stdDeviation += Math.pow(times[i] - avg, 2);
+//        }
+//        stdDeviation /= (double) 50;
+//        stdDeviation = Math.sqrt( (50 * stdDeviation) / ((double) 49));
+
+//        System.out.println("avg: " + avg + ", stdDev: " + stdDeviation);
+//        try {
+//            saveToFile(times, size, stdDeviation, avg);
+//        } catch (IOException e) {
+//            System.out.println("Error while saving test results.");
+//        }
     }
 
-    static void saveToFile(long[] times, double avg, double stdDev, int size) throws IOException{
+    static void saveNumsOrConstr(int[][] values, int from, int toInclusive, double[] median, String what) throws IOException {
+        int formatSize = 50;
+        FileWriter fw = new FileWriter(String.format("testResults/%s.csv", what), true);
+        fw.write("size, ");
+        for (int i = 1; i <= formatSize; ++i) {
+            fw.write("s" + i + ", ");
+        }
+        fw.write("median\n");
+
+        for (int sampleGroup = from; sampleGroup <= toInclusive; ++sampleGroup) {
+            fw.write(sampleGroup + ", ");
+            for (int i = 0; i < formatSize; ++i) {
+                fw.write(values[sampleGroup - from][i] + ", ");
+            }
+            fw.write(String.format("%.1f", median[sampleGroup - from]).replace(",", "."));
+
+            fw.write("\n");
+        }
+
+        fw.close();
+    }
+
+    static void saveToFile(long[] times, int size, double mean, double stdDev, double median, double iqr, double q25, double q75,  double[] trustInterval) throws IOException{
         FileWriter fw = new FileWriter("testResults/tests.txt", true);
 
         fw.write(String.format("Size %dx%d: ", size, size));
         for(long t: times) {
             fw.write(t + " ");
         }
-        fw.write("avg: " + avg + " ");
-        fw.write("dev: " + stdDev + "\n");
+        fw.write(String.format("\n%dx%d: ", size, size));
+        fw.write("mean: " + mean + " ");
+        fw.write("dev: " + stdDev + " ");
+        fw.write("median: " + median + " ");
+        fw.write("q25: " + q25 + " ");
+        fw.write("q75: " + q75 + " ");
+        fw.write("iqr: " + iqr + " ");
+        fw.write("trustInterval: [" + trustInterval[0] + ", " + trustInterval[1] + "]\n");
         fw.close();
     }
 
@@ -150,13 +272,20 @@ public class Main {
         // total time for 50 17x17 samples (ms): 2635713, avg 52,7
     }
 
-    static void checkExactSample() {
-        Sample s = new Sample("generatedSamples/5x5/sample1/raw.txt");
+    static void checkExactSample(String path) {
+        Sample s = new Sample(path);
         s.name = "id" + -1956855797;
 
         Evolomino evo = new Evolomino(s);
         showArrowsNReachable(evo);
-        EvolominoModel.solve(evo, 0, s.name, s);
+//        EvolominoModel.prepareModel(evo, s.name, s);
+//        System.out.println("AAAAA: " + EvolominoModel.variableCount + ", " + EvolominoModel.constraintCount);
+        if(EvolominoModel.solve(evo, 4, s.name, s)) {
+            System.out.println("Solvable!");
+        } else {
+            System.out.println("Infeasible!");
+        }
+
 
         // tested sample id's: -1956855797
     }
@@ -179,7 +308,9 @@ public class Main {
                 continue;
             }
 
-            seconds[i] = System.currentTimeMillis();
+
+            // WARM-UP
+            EvolominoModel.solve(new Evolomino(new Sample("generatedSamples/5x5/sample1/raw.txt")), 0, "", new Sample());
 
             String puzzleFileName = sampleDir.getPath() + "/puzzle.png";
             String rawFileName = sampleDir.getPath() + "/raw.txt";
@@ -191,7 +322,10 @@ public class Main {
 
             Evolomino evo = new Evolomino(s);
 
+            seconds[i] = System.currentTimeMillis();
             EvolominoModel.solve(evo, 0, s.name, s);
+            seconds[i] = System.currentTimeMillis() - seconds[i];
+
             for (int j = 0; j < s.totalCells; ++j) {
                 if (EvolominoModel.x[j].solutionValue() == 1 && s.field[j] < 16)
                     s.field[j] += 16;
@@ -199,8 +333,6 @@ public class Main {
 
             EvolominoPainter.paint(s, solutionFileName);
 
-            seconds[i] = System.currentTimeMillis() - seconds[i];
-            seconds[i] /= 1000;
         }
 
         for (int i = 0; i < n; ++i) {

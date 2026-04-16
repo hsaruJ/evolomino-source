@@ -1,25 +1,25 @@
 package dataclasses;
 
 public class Shift implements Comparable<Shift> {
-    public final int a;
-    public final int k;
-    public final int j;
+    public final int a; // arrow index
+    public final int k; // block index
+    public final Pair sh;
 
     // Shifts like this are forbidden
     private Shift() {
         a = -1;
         k = -1;
-        j = 0;
+        sh = new Pair();
     }
 
     public Shift(
             int o_a,
             int o_k,
-            int o_j
+            Pair o_sh
     ) {
         a = o_a;
         k = o_k;
-        j = o_j;
+        sh = o_sh;
     }
 
     @Override
@@ -30,8 +30,8 @@ public class Shift implements Comparable<Shift> {
         if (k < other.k) return -1;
         else if (k > other.k) return 1;
 
-        if (j < other.j) return -1;
-        else if (j > other.j) return 1;
+        if (sh.less(other.sh)) return -1;
+        else if (!sh.equals(other.sh)) return 1;
 
         return 0;
     }
