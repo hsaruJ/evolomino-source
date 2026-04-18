@@ -46,14 +46,14 @@ public final class EvolominoModel {
 //        System.out.println("Google OR-Tools version: " + OrToolsVersion.getVersionString());
 
         // Create the linear solver with the GLOP backend.
-        // possible alternatives: "BOP", "SCIP", "CBC" (arranged by speed descending)
+        // possible alternatives: "BOP", "SAT", "SCIP", "CBC" (arranged by speed descending)
         solver = MPSolver.createSolver("SAT");
         if (solver == null) {
             System.out.println("Could not create solver");
             return;
         }
 
-//        solver.setTimeLimit(1000);
+//        solver.setTimeLimit(180_000);
 
         // init parameters
         // TODO(Add a way to setup filePath for saving)
@@ -1074,7 +1074,7 @@ public final class EvolominoModel {
 
 //        System.out.println("Status: " + resultStatus);
         if (resultStatus != MPSolver.ResultStatus.OPTIMAL) {
-            System.out.println("The problem does not have an optimal solution!");
+//            System.out.println("The problem does not have an optimal solution!");
 //            System.out.println("Problem solved in " + solver.iterations() + " iterations");
             return false;
         }

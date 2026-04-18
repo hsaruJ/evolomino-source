@@ -1,0 +1,5 @@
+Made   on 17.04.2026
+Solved on
+Key problem: prove that shifts are calculated right
+
+True type: infeasible.

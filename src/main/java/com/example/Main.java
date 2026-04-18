@@ -9,48 +9,18 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-//        checkExactSample("generatedSamples/extra/counterexample_11042026/raw.txt");
+//        checkExactSample("counterexamples/sample1/raw.txt");
+//        checkExactSample("counterexamples/sample2/raw.txt");
 //        checkExactSample("generatedSamples/5x5/sample2/raw.txt");
 //        checkExactSample("generatedSamples/15x15/sample2/raw.txt");
-//        checkExactSample("archive/samples/input/sample2.txt");
-    }
-
-    static void changeMetrics(int size) {
-        long[] times = new long[50];
-
-        System.out.printf("Input %dx%d: ", size, size);
-        Scanner in = new Scanner(System.in);
-        for (int i = 0; i < times.length; ++i) {
-            times[i] = in.nextLong();
-        }
-
-        long[] timesCopy = times.clone();
-        timesCopy = Arrays.stream(timesCopy).sorted().toArray();
-
-        double mean = Arrays.stream(times).sum() / (double) 50;
-        double median = (timesCopy[24] + timesCopy[25]) / (double)2;
-        double q25 = timesCopy[12];
-        double q75 = timesCopy[37];
-        double iqr = q75 - q25;
-
-        double stdDeviation = 0;
-        for (int i = 0; i < 50; ++i) {
-            stdDeviation += Math.pow(times[i] - mean, 2);
-        }
-        stdDeviation = Math.sqrt(stdDeviation / (double) 49);
-
-        double tmp = (1.96 * stdDeviation) / Math.sqrt(50);
-        double[] trustInterval = {mean - tmp, mean + tmp};
-
-        try{
-            saveToFile(times, size, mean, stdDeviation, median, iqr, q25, q75, trustInterval);
-        } catch (IOException e) {
-            System.out.println("Error while rewriting test results.");
-        }
+//        checkExactSample("archive/samples/input/sample5.txt");
+        profileTest();
+//        for (int i = 18; i <= 18; ++i) {
+//            testClass(i);
+//        }
     }
 
     static void loadVarsNConstrAmount() {
@@ -103,9 +73,13 @@ public class Main {
     }
 
     static void testClass(int size) {
+        // try all tests
         long[] times = new long[50];
+        long[] vars = new long[50];
+        long[] constr = new long[50];
 
         boolean res;
+        // warm-up
         res = EvolominoModel.solve(new Evolomino(new Sample("generatedSamples/12x12/sample1/raw.txt")), 0, "", new Sample());
         long beginTime;
         Sample s;
@@ -121,8 +95,10 @@ public class Main {
                     fileName,
                     s
             );
+            times[i]  = System.currentTimeMillis() - beginTime;
+            vars[i]   = EvolominoModel.variableCount;
+            constr[i] = EvolominoModel.constraintCount;
             if (res) {
-                times[i] = System.currentTimeMillis() - beginTime;
                 System.out.print("#");
             } else {
                 System.out.println("!");
@@ -133,24 +109,35 @@ public class Main {
         }
         System.out.println();
 
-        for(long t: times) {
-            System.out.print(t + " ");
+        // statistics cals
+        long[] timesSorted = times.clone();
+        timesSorted = Arrays.stream(timesSorted).sorted().toArray();
+
+        double mean = Arrays.stream(times).sum() / (double) 50;
+        double median = (timesSorted[24] + timesSorted[25]) / (double)2;
+        double q25 = timesSorted[12];
+        double q75 = timesSorted[37];
+        double iqr = q75 - q25;
+
+        double stdDeviation = 0;
+        for (int i = 0; i < 50; ++i) {
+            stdDeviation += Math.pow(times[i] - mean, 2);
         }
+        stdDeviation = Math.sqrt(stdDeviation / (double) 49);
 
-//        double avg = Arrays.stream(times).sum() / (double) 50;
-//        double stdDeviation = 0;
-//        for (int i = 0; i < 50; ++i) {
-//            stdDeviation += Math.pow(times[i] - avg, 2);
-//        }
-//        stdDeviation /= (double) 50;
-//        stdDeviation = Math.sqrt( (50 * stdDeviation) / ((double) 49));
+        double tmp = (1.96 * stdDeviation) / Math.sqrt(50);
+        double[] trustInterval = {mean - tmp, mean + tmp};
 
-//        System.out.println("avg: " + avg + ", stdDev: " + stdDeviation);
-//        try {
-//            saveToFile(times, size, stdDeviation, avg);
-//        } catch (IOException e) {
-//            System.out.println("Error while saving test results.");
-//        }
+        long[] varsSorted = Arrays.stream(vars).sorted().toArray();
+        long[] constrSorted = Arrays.stream(constr).sorted().toArray();
+        double varsMedian = (varsSorted[24] + varsSorted[25]) / (double)2;
+        double constrMedian = (constrSorted[24] + constrSorted[25]) / (double)2;
+
+        try{
+            saveToFile(times, timesSorted, vars, constr, size, mean, stdDeviation, median, iqr, q25, q75, trustInterval, varsMedian, constrMedian);
+        } catch (IOException e) {
+            System.out.println("Error while rewriting test results.");
+        }
     }
 
     static void saveNumsOrConstr(int[][] values, int from, int toInclusive, double[] median, String what) throws IOException {
@@ -175,14 +162,35 @@ public class Main {
         fw.close();
     }
 
-    static void saveToFile(long[] times, int size, double mean, double stdDev, double median, double iqr, double q25, double q75,  double[] trustInterval) throws IOException{
+    static void saveToFile(long[] times, long[] sortedTimes, long[] vars, long[] constr,
+                           int size, double mean, double stdDev, double median,
+                           double iqr, double q25, double q75,  double[] trustInterval, double varsMedian, double constrMedian) throws IOException{
         FileWriter fw = new FileWriter("testResults/tests.txt", true);
 
-        fw.write(String.format("Size %dx%d: ", size, size));
+        fw.write(String.format("Size %dx%d:", size, size));
+        fw.write("\n\ttimes: ");
         for(long t: times) {
             fw.write(t + " ");
         }
-        fw.write(String.format("\n%dx%d: ", size, size));
+
+        fw.write("\n\tvariables: ");
+        for (long t: vars) {
+            fw.write(t + " ");
+        }
+
+        fw.write("\n\tconstraints: ");
+        for (long t: constr) {
+            fw.write(t + " ");
+        }
+
+        fw.write("\n\ttimes (sorted): ");
+        for (long t: sortedTimes) {
+            fw.write(t + " ");
+        }
+
+        fw.write("\n\tStats: ");
+        fw.write("variablesMedian: " + varsMedian + " ");
+        fw.write("constraintsMedian: " + constrMedian + " ");
         fw.write("mean: " + mean + " ");
         fw.write("dev: " + stdDev + " ");
         fw.write("median: " + median + " ");
@@ -190,6 +198,7 @@ public class Main {
         fw.write("q75: " + q75 + " ");
         fw.write("iqr: " + iqr + " ");
         fw.write("trustInterval: [" + trustInterval[0] + ", " + trustInterval[1] + "]\n");
+        fw.write("\n");
         fw.close();
     }
 
@@ -208,8 +217,10 @@ public class Main {
                     )
             ) {
                 timings[i] = System.currentTimeMillis() - beginTime;
-                System.out.print("(" + timings[i] + ", " + (i + 1) + "), ");
+            } else {
+                timings[i] = 0;
             }
+            System.out.print("(" + timings[i] + ", " + (i + 1) + "), ");
         }
 
         timings = Arrays.stream(timings).sorted().toArray();
